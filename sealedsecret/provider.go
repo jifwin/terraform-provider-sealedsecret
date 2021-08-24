@@ -2,6 +2,7 @@ package sealedsecret
 
 import (
 	"context"
+	"github.com/akselleirv/sealedsecret/git"
 
 	"github.com/akselleirv/sealedsecret/k8s"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -16,6 +17,7 @@ const (
 	clusterCaCertificate = "cluster_ca_certificate"
 	controllerName       = "controller_name"
 	controllerNamespace  = "controller_namespace"
+	gitStr               = "git"
 )
 
 func Provider() *schema.Provider {
@@ -51,6 +53,31 @@ func Provider() *schema.Provider {
 					},
 				},
 			},
+			gitStr: {
+				Type:        schema.TypeSet,
+				MaxItems:    1,
+				Required:    true,
+				Description: "Git repository credentials to where the sealed secret should be stored.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						url: {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "URL to the repository.",
+						},
+						username: {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Username to be used for the basic auth.",
+						},
+						token: {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Token to be used for the basic auth.",
+						},
+					},
+				},
+			},
 			controllerName: {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -75,11 +102,18 @@ type ProviderConfig struct {
 	ControllerName      string
 	ControllerNamespace string
 	Client              *k8s.Client
+	Git                 *git.Git
 }
 
 func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	// this is safe since the TypeSet is set to required and max is 1
-	k8sCfg := rd.Get(kubernetes).(*schema.Set).List()[0].(map[string]interface{})
+	k8sCfg := getMapFromSchemaSet(rd, kubernetes)
+	gitCfg := getMapFromSchemaSet(rd, gitStr)
+
+	g, err := git.NewGit(ctx, gitCfg[url].(string), git.BasicAuth{
+		Username: gitCfg[username].(string),
+		Token:    gitCfg[token].(string),
+	})
 
 	c, err := k8s.NewClient(
 		k8sCfg[host].(string),
@@ -94,5 +128,10 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 		ControllerName:      rd.Get(controllerName).(string),
 		ControllerNamespace: rd.Get(controllerNamespace).(string),
 		Client:              c,
+		Git:                 g,
 	}, nil
+}
+
+func getMapFromSchemaSet(rd *schema.ResourceData, key string) map[string]interface{} {
+	return rd.Get(key).(*schema.Set).List()[0].(map[string]interface{})
 }

@@ -4,19 +4,21 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/akselleirv/sealedsecret/kubeseal"
-	"os"
-
 	"github.com/akselleirv/sealedsecret/k8s"
+	"github.com/akselleirv/sealedsecret/kubeseal"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 const (
-	Name      = "name"
-	Namespace = "namespace"
-	Type      = "type"
-	Secrets   = "secrets"
+	name       = "name"
+	namespace  = "namespace"
+	secretType = "type"
+	secrets    = "secrets"
+	username   = "username"
+	token      = "token"
+	url        = "url"
+	filepath   = "filepath"
 )
 
 func resourceInGit() *schema.Resource {
@@ -26,44 +28,49 @@ func resourceInGit() *schema.Resource {
 		UpdateContext: resourceUpdate,
 		DeleteContext: resourceDelete,
 		Schema: map[string]*schema.Schema{
-			Name: {
+			name: {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "Name of the secret, must be unique",
+				Description: "name of the secret, must be unique",
 			},
-			Namespace: {
+			namespace: {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "Namespace of the secret",
+				Description: "namespace of the secret",
 			},
-			Type: {
+			secretType: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "Opaque",
 				Description: "The secret type (ex. Opaque)",
 			},
-			Secrets: {
+			secrets: {
 				Type:        schema.TypeMap,
 				Required:    true,
 				Description: "Key/value pairs to populate the secret",
+			},
+			filepath: {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The filepath in the Git repository. Including the filename itself and extension",
 			},
 		},
 	}
 }
 
-func resourceCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func resourceCreate(ctx context.Context, rd *schema.ResourceData, m interface{}) diag.Diagnostics {
 	secret, err := k8s.CreateSecret(
-		d.Get(Name).(string),
-		d.Get(Namespace).(string),
-		d.Get(Type).(string),
-		b64EncodeMapValue(d.Get(Secrets).(map[string]interface{})),
+		rd.Get(name).(string),
+		rd.Get(namespace).(string),
+		rd.Get(secretType).(string),
+		b64EncodeMapValue(rd.Get(secrets).(map[string]interface{})),
 	)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	cfg := m.(ProviderConfig)
-	pk, err := kubeseal.FetchPK(cfg.Client, cfg.ControllerName, cfg.ControllerNamespace)
+	provider := m.(ProviderConfig)
+	pk, err := kubeseal.FetchPK(provider.Client, provider.ControllerName, provider.ControllerNamespace)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -72,8 +79,9 @@ func resourceCreate(ctx context.Context, d *schema.ResourceData, m interface{}) 
 	if err != nil {
 		return diag.FromErr(err)
 	}
-
-	if err := os.WriteFile("sealedSecret.yaml", sealedSecret, 0666); err != nil {
+	
+	err = provider.Git.Push(ctx, sealedSecret, rd.Get(filepath).(string))
+	if err != nil {
 		return diag.FromErr(err)
 	}
 
