@@ -14,7 +14,7 @@ type Client struct {
 }
 
 type Clienter interface {
-	Get(controllerNamespace, controllerName, path string) ([]byte, error)
+	Get(controllerName, controllerNamespace, path string) ([]byte, error)
 }
 
 func NewClient(host string, clusterCACert, clientCert, clientKey []byte) (*Client, error) {
@@ -31,7 +31,7 @@ func NewClient(host string, clusterCACert, clientCert, clientKey []byte) (*Clien
 	return &Client{RestClient: c}, nil
 }
 
-func (c *Client) Get(controllerNamespace, controllerName, path string) ([]byte, error) {
+func (c *Client) Get(controllerName, controllerNamespace, path string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	resp, err := c.RestClient.
@@ -39,11 +39,11 @@ func (c *Client) Get(controllerNamespace, controllerName, path string) ([]byte, 
 		ProxyGet("http", controllerName, "", path, nil).
 		Stream(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf("request to k8s cluster failed: %w", err)
 	}
 	b, err := io.ReadAll(resp)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read response: %w", err)
+		return nil, fmt.Errorf("unable to read response from k8 clsuter: %w", err)
 	}
 	return b, nil
 }

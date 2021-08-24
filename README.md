@@ -1,1 +1,1 @@
-# terraform-sealed-secrets
+# sealed-secrets-to-git
