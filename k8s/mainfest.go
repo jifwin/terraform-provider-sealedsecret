@@ -23,25 +23,21 @@ data:
   {{ end }}
 type: {{ .Type }}`
 
-func CreateSecret(name, namespace, secretType string, secrets map[string]interface{}) (v1.Secret, error) {
+type SecretManifest struct {
+	Name      string
+	Namespace string
+	Type      string
+	Secrets   map[string]interface{}
+}
+
+func CreateSecret(sm *SecretManifest) (v1.Secret, error) {
 	secretManifestYAML := new(bytes.Buffer)
-	secretManifest := struct {
-		Name      string
-		Namespace string
-		Type      string
-		Secrets   map[string]interface{}
-	}{
-		Name:      name,
-		Namespace: namespace,
-		Type:      secretType,
-		Secrets:   secrets,
-	}
 
 	t, err := template.New("secretManifestTmpl").Parse(secretManifestTmpl)
 	if err != nil {
 		return v1.Secret{}, err
 	}
-	if err := t.Execute(secretManifestYAML, secretManifest); err != nil {
+	if err := t.Execute(secretManifestYAML, sm); err != nil {
 		return v1.Secret{}, err
 	}
 
@@ -53,6 +49,6 @@ func CreateSecret(name, namespace, secretType string, secrets map[string]interfa
 	if len(secret.Data) == 0 && len(secret.StringData) == 0 {
 		return v1.Secret{}, errors.New("unable to create a secret with empty Data and StringData ")
 	}
-	
+
 	return secret, nil
 }

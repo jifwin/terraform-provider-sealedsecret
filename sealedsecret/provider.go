@@ -2,7 +2,9 @@ package sealedsecret
 
 import (
 	"context"
+	"crypto/rsa"
 	"github.com/akselleirv/sealedsecret/git"
+	"github.com/akselleirv/sealedsecret/kubeseal"
 
 	"github.com/akselleirv/sealedsecret/k8s"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -18,6 +20,7 @@ const (
 	controllerName       = "controller_name"
 	controllerNamespace  = "controller_namespace"
 	gitStr               = "git"
+	sealedSecretInGit    = "sealedsecret_in_git"
 )
 
 func Provider() *schema.Provider {
@@ -73,6 +76,7 @@ func Provider() *schema.Provider {
 						token: {
 							Type:        schema.TypeString,
 							Required:    true,
+							Sensitive:   true,
 							Description: "Token to be used for the basic auth.",
 						},
 					},
@@ -93,7 +97,7 @@ func Provider() *schema.Provider {
 		},
 		ConfigureContextFunc: configureProvider,
 		ResourcesMap: map[string]*schema.Resource{
-			"sealedsecret_in_git": resourceInGit(),
+			sealedSecretInGit: resourceInGit(),
 		},
 	}
 }
@@ -103,6 +107,7 @@ type ProviderConfig struct {
 	ControllerNamespace string
 	Client              *k8s.Client
 	Git                 *git.Git
+	PK                  *rsa.PublicKey
 }
 
 func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{}, diag.Diagnostics) {
@@ -124,11 +129,21 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 	if err != nil {
 		return nil, diag.FromErr(err)
 	}
+
+	cName := rd.Get(controllerName).(string)
+	cNs := rd.Get(controllerNamespace).(string)
+
+	pk, err := kubeseal.FetchPK(c, cName, cNs)
+	if err != nil {
+		return nil, diag.FromErr(err)
+	}
+
 	return ProviderConfig{
-		ControllerName:      rd.Get(controllerName).(string),
-		ControllerNamespace: rd.Get(controllerNamespace).(string),
+		ControllerName:      cName,
+		ControllerNamespace: cNs,
 		Client:              c,
 		Git:                 g,
+		PK:                  pk,
 	}, nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/akselleirv/sealedsecret/kubeseal"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 const (
@@ -20,6 +21,19 @@ const (
 	url        = "url"
 	filepath   = "filepath"
 )
+
+type SealedSecret struct {
+	Spec struct {
+		EncryptedData map[string]string `yaml:"encryptedData"`
+		Template      struct {
+			Type     string `yaml:"type"`
+			Metadata struct {
+				Name      string `yaml:"name"`
+				Namespace string `yaml:"namespace"`
+			} `yaml:"metadata"`
+		} `yaml:"template"`
+	} `yaml:"spec"`
+}
 
 func resourceInGit() *schema.Resource {
 	return &schema.Resource{
@@ -47,6 +61,7 @@ func resourceInGit() *schema.Resource {
 			secrets: {
 				Type:        schema.TypeMap,
 				Required:    true,
+				Sensitive:   true,
 				Description: "Key/value pairs to populate the secret",
 			},
 			filepath: {
@@ -59,36 +74,46 @@ func resourceInGit() *schema.Resource {
 }
 
 func resourceCreate(ctx context.Context, rd *schema.ResourceData, m interface{}) diag.Diagnostics {
-	secret, err := k8s.CreateSecret(
-		rd.Get(name).(string),
-		rd.Get(namespace).(string),
-		rd.Get(secretType).(string),
-		b64EncodeMapValue(rd.Get(secrets).(map[string]interface{})),
-	)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
 	provider := m.(ProviderConfig)
-	pk, err := kubeseal.FetchPK(provider.Client, provider.ControllerName, provider.ControllerNamespace)
+	filePath := rd.Get(filepath).(string)
+
+	sealedSecret, err := createSealedSecret(&provider, rd)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	sealedSecret, err := kubeseal.SealSecret(secret, pk)
+	err = provider.Git.Push(ctx, sealedSecret, filePath)
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	
-	err = provider.Git.Push(ctx, sealedSecret, rd.Get(filepath).(string))
-	if err != nil {
-		return diag.FromErr(err)
-	}
+	rd.SetId(filePath)
 
-	return diag.Errorf("resource create ===========>")
+	return resourceRead(ctx, rd, m)
 }
-func resourceRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	return diag.Errorf("resource read ===========>")
+func resourceRead(ctx context.Context, rd *schema.ResourceData, m interface{}) diag.Diagnostics {
+	provider := m.(ProviderConfig)
+
+	f, err := provider.Git.GetFile(rd.Id())
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	ssInGit := &SealedSecret{}
+	if err := yaml.Unmarshal(f, ssInGit); err != nil {
+		return diag.FromErr(err)
+	}
+
+	if err := rd.Set(name, ssInGit.Spec.Template.Metadata.Name); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := rd.Set(namespace, ssInGit.Spec.Template.Metadata.Namespace); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := rd.Set(secretType, ssInGit.Spec.Template.Type); err != nil {
+		return diag.FromErr(err)
+	}
+
+	return nil
 }
 func resourceUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	return diag.Errorf("resource update ===========>")
@@ -97,10 +122,28 @@ func resourceDelete(ctx context.Context, d *schema.ResourceData, m interface{}) 
 	return diag.Errorf("resource delete ===========>")
 }
 
+func createSealedSecret(provider *ProviderConfig, rd *schema.ResourceData) ([]byte, error) {
+	secret, err := k8s.CreateSecret(&k8s.SecretManifest{
+		Name:      rd.Get(name).(string),
+		Namespace: rd.Get(namespace).(string),
+		Type:      rd.Get(secretType).(string),
+		Secrets:   b64EncodeMapValue(rd.Get(secrets).(map[string]interface{})),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return kubeseal.SealSecret(secret, provider.PK)
+}
+
 func b64EncodeMapValue(m map[string]interface{}) map[string]interface{} {
 	result := map[string]interface{}{}
 	for key, value := range m {
 		result[key] = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%v", value)))
 	}
 	return result
+}
+
+func handleEncryptedSecretsDiff(ctx context.Context, old, new, meta interface{}) bool {
+	return true
 }

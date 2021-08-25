@@ -41,6 +41,7 @@ func SealSecret(secret v1.Secret, pk *rsa.PublicKey) ([]byte, error) {
 	secret.SetDeletionTimestamp(nil)
 	secret.DeletionGracePeriodSeconds = nil
 
+
 	sealedSecret, err := ssv1alpha1.NewSealedSecret(codecs, pk, &secret)
 	if err != nil {
 		return nil, fmt.Errorf("unable to seal secret: %w", err)

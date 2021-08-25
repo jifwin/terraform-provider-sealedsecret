@@ -8,6 +8,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage/memory"
+	"io"
 )
 
 type Git struct {
@@ -22,6 +23,7 @@ type BasicAuth struct {
 
 type Giter interface {
 	Push(ctx context.Context, file []byte, path string) error
+	GetFile(filePath string) ([]byte, error)
 }
 
 func NewGit(ctx context.Context, url string, auth BasicAuth) (*Git, error) {
@@ -75,4 +77,13 @@ func (g *Git) Push(ctx context.Context, file []byte, filePath string) error {
 	}
 
 	return nil
+}
+
+func (g *Git) GetFile(filePath string) ([]byte, error) {
+	f, err := g.fs.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return io.ReadAll(f)
 }
