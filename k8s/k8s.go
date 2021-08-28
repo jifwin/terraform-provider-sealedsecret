@@ -6,6 +6,7 @@ import (
 	"io"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 	"time"
 )
 
@@ -13,12 +14,16 @@ type Client struct {
 	RestClient *corev1.CoreV1Client
 }
 
+const timeout = 10 * time.Second
+
 type Clienter interface {
 	Get(controllerName, controllerNamespace, path string) ([]byte, error)
 }
 
 func NewClient(host string, clusterCACert, clientCert, clientKey []byte) (*Client, error) {
-	cfg := &rest.Config{}
+	cfg := &rest.Config{
+		Timeout: timeout,
+	}
 	cfg.Host = host
 	cfg.CAData = clusterCACert
 	cfg.CertData = clientCert
@@ -32,12 +37,20 @@ func NewClient(host string, clusterCACert, clientCert, clientKey []byte) (*Clien
 }
 
 func (c *Client) Get(controllerName, controllerNamespace, path string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	resp, err := c.RestClient.
-		Services(controllerNamespace).
-		ProxyGet("http", controllerName, "", path, nil).
-		Stream(ctx)
+	var resp io.ReadCloser
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var innerErr error
+		resp, innerErr = c.RestClient.
+			Services(controllerNamespace).
+			ProxyGet("http", controllerName, "", path, nil).
+			Stream(ctx)
+		if innerErr != nil {
+			return innerErr
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("request to k8s cluster failed: %w", err)
 	}

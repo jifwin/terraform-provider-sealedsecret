@@ -27,7 +27,7 @@ func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			kubernetes: {
-				Type:        schema.TypeSet,
+				Type:        schema.TypeList,
 				MaxItems:    1,
 				Required:    true,
 				Description: "Kubernetes configuration.",
@@ -57,7 +57,7 @@ func Provider() *schema.Provider {
 				},
 			},
 			gitStr: {
-				Type:        schema.TypeSet,
+				Type:        schema.TypeList,
 				MaxItems:    1,
 				Required:    true,
 				Description: "Git repository credentials to where the sealed secret should be stored.",
@@ -148,5 +148,5 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 }
 
 func getMapFromSchemaSet(rd *schema.ResourceData, key string) map[string]interface{} {
-	return rd.Get(key).(*schema.Set).List()[0].(map[string]interface{})
+	return rd.Get(key).([]interface{})[0].(map[string]interface{})
 }

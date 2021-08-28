@@ -6,6 +6,7 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"io"
@@ -24,6 +25,7 @@ type BasicAuth struct {
 type Giter interface {
 	Push(ctx context.Context, file []byte, path string) error
 	GetFile(filePath string) ([]byte, error)
+	DeleteFile(ctx context.Context, filePath string) error
 }
 
 func NewGit(ctx context.Context, url string, auth BasicAuth) (*Git, error) {
@@ -67,7 +69,7 @@ func (g *Git) Push(ctx context.Context, file []byte, filePath string) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Commit("automated sealed-secret creation", &git.CommitOptions{})
+	_, err = w.Commit(createCommitMsg("created", filePath), &git.CommitOptions{})
 	if err != nil {
 		return err
 	}
@@ -86,4 +88,31 @@ func (g *Git) GetFile(filePath string) ([]byte, error) {
 	}
 
 	return io.ReadAll(f)
+}
+
+func (g *Git) DeleteFile(ctx context.Context, filePath string) error {
+	w, err := g.repo.Worktree()
+	if err != nil {
+		return err
+	}
+	_, err = w.Remove(filePath)
+	if err != nil {
+		return err
+	}
+	_, err = w.Commit(createCommitMsg("deleted", filePath), &git.CommitOptions{Author: &object.Signature{
+		Name: "SEALEDSECRET-PROVIDER",
+	}})
+	if err != nil {
+		return err
+	}
+	if err := g.repo.PushContext(ctx, &git.PushOptions{RemoteName: "origin", Auth: g.auth}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func createCommitMsg(action, filePath string) string {
+	return fmt.Sprintf("[SEALEDSECRET-PROVIDER] %s --> %s", action, filePath)
+
 }

@@ -2,6 +2,8 @@ package sealedsecret
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
 	"github.com/akselleirv/sealedsecret/k8s"
@@ -12,14 +14,15 @@ import (
 )
 
 const (
-	name       = "name"
-	namespace  = "namespace"
-	secretType = "type"
-	secrets    = "secrets"
-	username   = "username"
-	token      = "token"
-	url        = "url"
-	filepath   = "filepath"
+	name          = "name"
+	namespace     = "namespace"
+	secretType    = "type"
+	secrets       = "secrets"
+	username      = "username"
+	token         = "token"
+	url           = "url"
+	filepath      = "filepath"
+	publicKeyHash = "public_key_hash"
 )
 
 type SealedSecret struct {
@@ -69,15 +72,20 @@ func resourceInGit() *schema.Resource {
 				Required:    true,
 				Description: "The filepath in the Git repository. Including the filename itself and extension",
 			},
+			publicKeyHash: {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The public key hashed to detect if the public key changes.",
+			},
 		},
 	}
 }
 
-func resourceCreate(ctx context.Context, rd *schema.ResourceData, m interface{}) diag.Diagnostics {
-	provider := m.(ProviderConfig)
-	filePath := rd.Get(filepath).(string)
+func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	provider := meta.(ProviderConfig)
+	filePath := d.Get(filepath).(string)
 
-	sealedSecret, err := createSealedSecret(&provider, rd)
+	sealedSecret, err := createSealedSecret(&provider, d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -86,14 +94,17 @@ func resourceCreate(ctx context.Context, rd *schema.ResourceData, m interface{})
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	rd.SetId(filePath)
+	d.SetId(filePath)
+	if err := d.Set(secrets, d.Get(secrets).(map[string]interface{})); err != nil {
+		return diag.FromErr(err)
+	}
 
-	return resourceRead(ctx, rd, m)
+	return resourceRead(ctx, d, meta)
 }
-func resourceRead(ctx context.Context, rd *schema.ResourceData, m interface{}) diag.Diagnostics {
-	provider := m.(ProviderConfig)
+func resourceRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	provider := meta.(ProviderConfig)
 
-	f, err := provider.Git.GetFile(rd.Id())
+	f, err := provider.Git.GetFile(d.Id())
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -103,31 +114,44 @@ func resourceRead(ctx context.Context, rd *schema.ResourceData, m interface{}) d
 		return diag.FromErr(err)
 	}
 
-	if err := rd.Set(name, ssInGit.Spec.Template.Metadata.Name); err != nil {
+	if err := d.Set(name, ssInGit.Spec.Template.Metadata.Name); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := rd.Set(namespace, ssInGit.Spec.Template.Metadata.Namespace); err != nil {
+	if err := d.Set(namespace, ssInGit.Spec.Template.Metadata.Namespace); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := rd.Set(secretType, ssInGit.Spec.Template.Type); err != nil {
+	if err := d.Set(secretType, ssInGit.Spec.Template.Type); err != nil {
+		return diag.FromErr(err)
+	}
+
+	newPkHash := hashPublicKey(provider.PK)
+	oldPkHash, ok := d.State().Attributes[publicKeyHash]
+	if ok && newPkHash != oldPkHash {
+		// If the PK changed then we are forcing it to be recreated.
+		// We do not require any clean up since the keys stored in Git will be overwritten when applied again.
+		// An improvement could be so notify the user the reason for the recreate was the PK change.
+		d.SetId("")
+	}
+
+	if err := d.Set(publicKeyHash, newPkHash); err != nil {
 		return diag.FromErr(err)
 	}
 
 	return nil
 }
-func resourceUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	return diag.Errorf("resource update ===========>")
+func resourceUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	return resourceCreate(ctx, d, meta)
 }
-func resourceDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	return diag.Errorf("resource delete ===========>")
+func resourceDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	return diag.FromErr(meta.(ProviderConfig).Git.DeleteFile(ctx, d.Get(filepath).(string)))
 }
 
-func createSealedSecret(provider *ProviderConfig, rd *schema.ResourceData) ([]byte, error) {
+func createSealedSecret(provider *ProviderConfig, d *schema.ResourceData) ([]byte, error) {
 	secret, err := k8s.CreateSecret(&k8s.SecretManifest{
-		Name:      rd.Get(name).(string),
-		Namespace: rd.Get(namespace).(string),
-		Type:      rd.Get(secretType).(string),
-		Secrets:   b64EncodeMapValue(rd.Get(secrets).(map[string]interface{})),
+		Name:      d.Get(name).(string),
+		Namespace: d.Get(namespace).(string),
+		Type:      d.Get(secretType).(string),
+		Secrets:   b64EncodeMapValue(d.Get(secrets).(map[string]interface{})),
 	})
 	if err != nil {
 		return nil, err
@@ -144,6 +168,8 @@ func b64EncodeMapValue(m map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-func handleEncryptedSecretsDiff(ctx context.Context, old, new, meta interface{}) bool {
-	return true
+// The public key is hashed since we want to force update the resource if the key changes.
+// Hashing the key also saves us some space.
+func hashPublicKey(pk *rsa.PublicKey) string {
+	return fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("%v%v", pk.N, pk.E))))
 }
