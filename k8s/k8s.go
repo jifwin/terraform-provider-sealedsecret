@@ -7,6 +7,7 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+	"net/http"
 	"time"
 )
 
@@ -14,33 +15,42 @@ type Client struct {
 	RestClient *corev1.CoreV1Client
 }
 
-const timeout = 10 * time.Second
-
-type Clienter interface {
-	Get(controllerName, controllerNamespace, path string) ([]byte, error)
+type Config struct {
+	Host                                 string
+	ClusterCACert, ClientCert, ClientKey []byte
+	Transport                            http.RoundTripper
 }
 
-func NewClient(host string, clusterCACert, clientCert, clientKey []byte) (*Client, error) {
-	cfg := &rest.Config{
-		Timeout: timeout,
-	}
-	cfg.Host = host
-	cfg.CAData = clusterCACert
-	cfg.CertData = clientCert
-	cfg.KeyData = clientKey
+type Clienter interface {
+	Get(ctx context.Context, controllerName, controllerNamespace, path string) ([]byte, error)
+}
 
-	c, err := corev1.NewForConfig(cfg)
+func NewClient(cfg *Config) (*Client, error) {
+	restCfg := &rest.Config{
+		Timeout: 10 * time.Second,
+	}
+	restCfg.Host = cfg.Host
+	restCfg.CAData = cfg.ClusterCACert
+	restCfg.CertData = cfg.ClientCert
+	restCfg.KeyData = cfg.ClientKey
+	if cfg.Transport != nil {
+		restCfg.Transport = cfg.Transport
+	}
+
+	c, err := corev1.NewForConfig(restCfg)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{RestClient: c}, nil
 }
 
-func (c *Client) Get(controllerName, controllerNamespace, path string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+func (c *Client) Get(ctx context.Context, controllerName, controllerNamespace, path string) ([]byte, error) {
 	var resp io.ReadCloser
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+
+	err := retry.OnError(retry.DefaultRetry, func(err error) bool {
+		// we want to retry regardless of given error
+		return true
+	}, func() error {
 		var innerErr error
 		resp, innerErr = c.RestClient.
 			Services(controllerNamespace).

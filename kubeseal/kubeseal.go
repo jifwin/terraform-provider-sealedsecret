@@ -1,6 +1,7 @@
 package kubeseal
 
 import (
+	"context"
 	"crypto/rsa"
 	"fmt"
 	"github.com/akselleirv/sealedsecret/k8s"
@@ -13,8 +14,8 @@ import (
 	"k8s.io/client-go/util/cert"
 )
 
-func FetchPK(c k8s.Clienter, controllerName, controllerNamespace string) (*rsa.PublicKey, error) {
-	resp, err := c.Get(controllerName,controllerNamespace, "/v1/cert.pem")
+func FetchPK(ctx context.Context, c k8s.Clienter, controllerName, controllerNamespace string) (*rsa.PublicKey, error) {
+	resp, err := c.Get(ctx, controllerName, controllerNamespace, "/v1/cert.pem")
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +41,6 @@ func SealSecret(secret v1.Secret, pk *rsa.PublicKey) ([]byte, error) {
 	secret.SetCreationTimestamp(metav1.Time{})
 	secret.SetDeletionTimestamp(nil)
 	secret.DeletionGracePeriodSeconds = nil
-
 
 	sealedSecret, err := ssv1alpha1.NewSealedSecret(codecs, pk, &secret)
 	if err != nil {

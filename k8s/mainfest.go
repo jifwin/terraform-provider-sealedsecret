@@ -2,7 +2,9 @@ package k8s
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
+	"fmt"
 
 	"html/template"
 	v1 "k8s.io/api/core/v1"
@@ -17,20 +19,36 @@ metadata:
   creationTimestamp: null
   name: {{ .Name }}
   namespace: {{ .Namespace }}
+{{ if .Data }}
 data:
-  {{- range $key, $value := .Secrets }}
+  {{- range $key, $value := .Data }}
   {{ $key }}: {{ $value -}}
   {{ end }}
+{{ end }}
+{{ if .StringData }}
+stringData:
+  {{- range $key, $value := .StringData }}
+  {{ $key }}: {{ $value -}}
+  {{ end }}
+{{ end }}
 type: {{ .Type }}`
 
 type SecretManifest struct {
-	Name      string
-	Namespace string
-	Type      string
-	Secrets   map[string]interface{}
+	Name       string
+	Namespace  string
+	Type       string
+	Data       map[string]interface{}
+	StringData map[string]string
 }
 
+var ErrEmptyData = errors.New("secret manifest Data and StringData cannot be empty")
+
 func CreateSecret(sm *SecretManifest) (v1.Secret, error) {
+	if len(sm.Data) == 0 && len(sm.StringData) == 0 {
+		return v1.Secret{}, ErrEmptyData
+	}
+
+	sm.Data = b64EncodeMapValue(sm.Data)
 	secretManifestYAML := new(bytes.Buffer)
 
 	t, err := template.New("secretManifestTmpl").Parse(secretManifestTmpl)
@@ -46,9 +64,13 @@ func CreateSecret(sm *SecretManifest) (v1.Secret, error) {
 		return v1.Secret{}, err
 	}
 
-	if len(secret.Data) == 0 && len(secret.StringData) == 0 {
-		return v1.Secret{}, errors.New("unable to create a secret with empty Data and StringData ")
-	}
-
 	return secret, nil
+}
+
+func b64EncodeMapValue(m map[string]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+	for key, value := range m {
+		result[key] = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%v", value)))
+	}
+	return result
 }

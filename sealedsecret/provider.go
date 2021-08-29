@@ -120,12 +120,12 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 		Token:    gitCfg[token].(string),
 	})
 
-	c, err := k8s.NewClient(
-		k8sCfg[host].(string),
-		[]byte(k8sCfg[clusterCaCertificate].(string)),
-		[]byte(k8sCfg[clientCertificate].(string)),
-		[]byte(k8sCfg[clientKey].(string)),
-	)
+	c, err := k8s.NewClient(&k8s.Config{
+		Host:          k8sCfg[host].(string),
+		ClusterCACert: []byte(k8sCfg[clusterCaCertificate].(string)),
+		ClientCert:    []byte(k8sCfg[clientCertificate].(string)),
+		ClientKey:     []byte(k8sCfg[clientKey].(string)),
+	})
 	if err != nil {
 		return nil, diag.FromErr(err)
 	}
@@ -133,7 +133,7 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 	cName := rd.Get(controllerName).(string)
 	cNs := rd.Get(controllerNamespace).(string)
 
-	pk, err := kubeseal.FetchPK(c, cName, cNs)
+	pk, err := kubeseal.FetchPK(ctx, c, cName, cNs)
 	if err != nil {
 		return nil, diag.FromErr(err)
 	}

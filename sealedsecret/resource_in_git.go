@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/sha1"
-	"encoding/base64"
 	"fmt"
 	"github.com/akselleirv/sealedsecret/k8s"
 	"github.com/akselleirv/sealedsecret/kubeseal"
@@ -151,21 +150,13 @@ func createSealedSecret(provider *ProviderConfig, d *schema.ResourceData) ([]byt
 		Name:      d.Get(name).(string),
 		Namespace: d.Get(namespace).(string),
 		Type:      d.Get(secretType).(string),
-		Secrets:   b64EncodeMapValue(d.Get(secrets).(map[string]interface{})),
+		Data:      d.Get(secrets).(map[string]interface{}),
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return kubeseal.SealSecret(secret, provider.PK)
-}
-
-func b64EncodeMapValue(m map[string]interface{}) map[string]interface{} {
-	result := map[string]interface{}{}
-	for key, value := range m {
-		result[key] = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%v", value)))
-	}
-	return result
 }
 
 // The public key is hashed since we want to force update the resource if the key changes.
