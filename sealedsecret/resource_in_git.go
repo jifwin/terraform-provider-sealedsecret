@@ -104,7 +104,7 @@ func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{
 	if err := d.Set(data, d.Get(data).(map[string]interface{})); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := d.Set(stringData, d.Get(stringData).(map[string]string)); err != nil {
+	if err := d.Set(stringData, d.Get(stringData).(map[string]interface{})); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -156,13 +156,23 @@ func resourceDelete(ctx context.Context, d *schema.ResourceData, meta interface{
 }
 
 func createSealedSecret(provider *ProviderConfig, d *schema.ResourceData) ([]byte, error) {
-	secret, err := k8s.CreateSecret(&k8s.SecretManifest{
-		Name:       d.Get(name).(string),
-		Namespace:  d.Get(namespace).(string),
-		Type:       d.Get(secretType).(string),
-		Data:       d.Get(data).(map[string]interface{}),
-		StringData: d.Get(stringData).(map[string]string),
-	})
+	rawSecret := k8s.SecretManifest{
+		Name:      d.Get(name).(string),
+		Namespace: d.Get(namespace).(string),
+		Type:      d.Get(secretType).(string),
+	}
+	if dataRaw, ok := d.GetOk(data); ok {
+		rawSecret.Data = dataRaw.(map[string]interface{})
+	}
+	if stringDataRaw, ok := d.GetOk(stringData); ok {
+		m := make(map[string]string)
+		for k, v := range stringDataRaw.(map[string]interface{}) {
+			m[k] = v.(string)
+		}
+		rawSecret.StringData = m
+	}
+
+	secret, err := k8s.CreateSecret(&rawSecret)
 	if err != nil {
 		return nil, err
 	}
