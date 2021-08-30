@@ -20,11 +20,12 @@ description: |-
 - **filepath** (String) The filepath in the Git repository. Including the filename itself and extension
 - **name** (String) name of the secret, must be unique
 - **namespace** (String) namespace of the secret
-- **secrets** (Map of String, Sensitive) Key/value pairs to populate the secret
 
 ### Optional
 
+- **data** (Map of String, Sensitive) Key/value pairs to populate the secret. The value will be base64 encoded
 - **id** (String) The ID of this resource.
+- **stringData** (Map of String, Sensitive) Key/value pairs to populate the secret.
 - **type** (String) The secret type (ex. Opaque)
 
 ### Read-Only

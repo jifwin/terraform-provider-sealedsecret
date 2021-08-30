@@ -86,7 +86,7 @@ func Provider() *schema.Provider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "The name of the sealed-secret-controller.",
-				Default:     "sealed-secrets-controller",
+				Default:     "sealed-data-controller",
 			},
 			controllerNamespace: {
 				Type:        schema.TypeString,

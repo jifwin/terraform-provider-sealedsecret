@@ -16,7 +16,8 @@ const (
 	name          = "name"
 	namespace     = "namespace"
 	secretType    = "type"
-	secrets       = "secrets"
+	data          = "data"
+	stringData    = "stringData"
 	username      = "username"
 	token         = "token"
 	url           = "url"
@@ -60,11 +61,17 @@ func resourceInGit() *schema.Resource {
 				Default:     "Opaque",
 				Description: "The secret type (ex. Opaque)",
 			},
-			secrets: {
+			data: {
 				Type:        schema.TypeMap,
-				Required:    true,
+				Optional:    true,
 				Sensitive:   true,
-				Description: "Key/value pairs to populate the secret",
+				Description: "Key/value pairs to populate the secret. The value will be base64 encoded",
+			},
+			stringData: {
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Sensitive:   true,
+				Description: "Key/value pairs to populate the secret.",
 			},
 			filepath: {
 				Type:        schema.TypeString,
@@ -94,7 +101,10 @@ func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{
 		return diag.FromErr(err)
 	}
 	d.SetId(filePath)
-	if err := d.Set(secrets, d.Get(secrets).(map[string]interface{})); err != nil {
+	if err := d.Set(data, d.Get(data).(map[string]interface{})); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set(stringData, d.Get(stringData).(map[string]string)); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -147,10 +157,11 @@ func resourceDelete(ctx context.Context, d *schema.ResourceData, meta interface{
 
 func createSealedSecret(provider *ProviderConfig, d *schema.ResourceData) ([]byte, error) {
 	secret, err := k8s.CreateSecret(&k8s.SecretManifest{
-		Name:      d.Get(name).(string),
-		Namespace: d.Get(namespace).(string),
-		Type:      d.Get(secretType).(string),
-		Data:      d.Get(secrets).(map[string]interface{}),
+		Name:       d.Get(name).(string),
+		Namespace:  d.Get(namespace).(string),
+		Type:       d.Get(secretType).(string),
+		Data:       d.Get(data).(map[string]interface{}),
+		StringData: d.Get(stringData).(map[string]string),
 	})
 	if err != nil {
 		return nil, err
