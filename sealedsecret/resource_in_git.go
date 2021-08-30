@@ -17,7 +17,7 @@ const (
 	namespace     = "namespace"
 	secretType    = "type"
 	data          = "data"
-	stringData    = "stringData"
+	stringData    = "string_data"
 	username      = "username"
 	token         = "token"
 	url           = "url"

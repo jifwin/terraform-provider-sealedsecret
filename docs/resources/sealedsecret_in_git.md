@@ -25,7 +25,7 @@ description: |-
 
 - **data** (Map of String, Sensitive) Key/value pairs to populate the secret. The value will be base64 encoded
 - **id** (String) The ID of this resource.
-- **stringData** (Map of String, Sensitive) Key/value pairs to populate the secret.
+- **string_data** (Map of String, Sensitive) Key/value pairs to populate the secret.
 - **type** (String) The secret type (ex. Opaque)
 
 ### Read-Only
