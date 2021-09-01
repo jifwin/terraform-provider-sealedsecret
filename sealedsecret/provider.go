@@ -2,7 +2,6 @@ package sealedsecret
 
 import (
 	"context"
-	"crypto/rsa"
 	"github.com/akselleirv/sealedsecret/git"
 	"github.com/akselleirv/sealedsecret/kubeseal"
 
@@ -107,7 +106,7 @@ type ProviderConfig struct {
 	ControllerNamespace string
 	Client              *k8s.Client
 	Git                 *git.Git
-	PK                  *rsa.PublicKey
+	PublicKeyResolver   kubeseal.PKResolverFunc
 }
 
 func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{}, diag.Diagnostics) {
@@ -133,17 +132,12 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 	cName := rd.Get(controllerName).(string)
 	cNs := rd.Get(controllerNamespace).(string)
 
-	pk, err := kubeseal.FetchPK(ctx, c, cName, cNs)
-	if err != nil {
-		return nil, diag.FromErr(err)
-	}
-
 	return ProviderConfig{
 		ControllerName:      cName,
 		ControllerNamespace: cNs,
 		Client:              c,
 		Git:                 g,
-		PK:                  pk,
+		PublicKeyResolver:   kubeseal.FetchPK(ctx, c, cName, cNs),
 	}, nil
 }
 

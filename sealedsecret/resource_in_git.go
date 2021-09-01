@@ -133,7 +133,11 @@ func resourceRead(ctx context.Context, d *schema.ResourceData, meta interface{})
 		return diag.FromErr(err)
 	}
 
-	newPkHash := hashPublicKey(provider.PK)
+	pk, err := provider.PublicKeyResolver()
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	newPkHash := hashPublicKey(pk)
 	oldPkHash, ok := d.State().Attributes[publicKeyHash]
 	if ok && newPkHash != oldPkHash {
 		// If the PK changed then we are forcing it to be recreated.
@@ -177,7 +181,12 @@ func createSealedSecret(provider *ProviderConfig, d *schema.ResourceData) ([]byt
 		return nil, err
 	}
 
-	return kubeseal.SealSecret(secret, provider.PK)
+	pk, err := provider.PublicKeyResolver()
+	if err != nil {
+		return nil, err
+	}
+
+	return kubeseal.SealSecret(secret,pk)
 }
 
 // The public key is hashed since we want to force update the resource if the key changes.

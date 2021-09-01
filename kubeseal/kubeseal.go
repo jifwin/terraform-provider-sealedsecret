@@ -14,20 +14,29 @@ import (
 	"k8s.io/client-go/util/cert"
 )
 
-func FetchPK(ctx context.Context, c k8s.Clienter, controllerName, controllerNamespace string) (*rsa.PublicKey, error) {
+type PKResolverFunc = func() (*rsa.PublicKey, error)
+
+func FetchPK(ctx context.Context, c k8s.Clienter, controllerName, controllerNamespace string) PKResolverFunc {
+	var pk *rsa.PublicKey
+	var err error
+	resultFunc := func() (*rsa.PublicKey, error) {
+		return pk, err
+	}
 	resp, err := c.Get(ctx, controllerName, controllerNamespace, "/v1/cert.pem")
 	if err != nil {
-		return nil, err
+		return resultFunc
 	}
 	certs, err := cert.ParseCertsPEM(resp)
 	if err != nil {
-		return nil, err
+		return resultFunc
 	}
+
 	pk, ok := certs[0].PublicKey.(*rsa.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("expected public key, got: %v", certs[0].PublicKey)
+		err = fmt.Errorf("expected public key, got: %v", certs[0].PublicKey)
 	}
-	return pk, nil
+
+	return resultFunc
 }
 
 func SealSecret(secret v1.Secret, pk *rsa.PublicKey) ([]byte, error) {
