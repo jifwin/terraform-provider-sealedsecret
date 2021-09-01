@@ -54,14 +54,14 @@ func NewGit(ctx context.Context, url string, auth BasicAuth) (*Git, error) {
 //
 // filePath must specify the path to where the new file should be created
 func (g *Git) Push(ctx context.Context, file []byte, filePath string) error {
+	// when multiple resources are created we need to update the git refs head after push
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	
 	newFile, err := g.fs.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("unable to create file: %w", err)
 	}
-
-	// when multiple resources are created we need to update the git refs head after push
-	g.mu.Lock()
-	defer g.mu.Unlock()
 
 	_, err = newFile.Write(file)
 	if err != nil {
@@ -106,13 +106,14 @@ func (g *Git) GetFile(filePath string) ([]byte, error) {
 }
 
 func (g *Git) DeleteFile(ctx context.Context, filePath string) error {
+	// when multiple resources are created we need to update the git refs head after push
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
 	w, err := g.repo.Worktree()
 	if err != nil {
 		return err
 	}
-	// when multiple resources are created we need to update the git refs head after push
-	g.mu.Lock()
-	defer g.mu.Unlock()
 	_, err = w.Remove(filePath)
 	if err != nil {
 		return err
