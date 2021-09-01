@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/sha1"
+	"errors"
 	"fmt"
 	"github.com/akselleirv/sealedsecret/k8s"
 	"github.com/akselleirv/sealedsecret/kubeseal"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"os"
 )
 
 const (
@@ -114,6 +116,11 @@ func resourceRead(ctx context.Context, d *schema.ResourceData, meta interface{})
 	provider := meta.(ProviderConfig)
 
 	f, err := provider.Git.GetFile(d.Id())
+	if errors.Is(err, os.ErrNotExist) {
+		d.SetId("")
+		return nil
+	}
+
 	if err != nil {
 		return diag.FromErr(err)
 	}
