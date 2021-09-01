@@ -48,7 +48,10 @@ func CreateSecret(sm *SecretManifest) (v1.Secret, error) {
 		return v1.Secret{}, ErrEmptyData
 	}
 
-	sm.Data = b64EncodeMapValue(sm.Data)
+	// if it is a .docker/config.json file then the data should already be base64 encoded
+	if sm.Type != "kubernetes.io/dockerconfigjson" {
+		sm.Data = b64EncodeMapValue(sm.Data)
+	}
 	secretManifestYAML := new(bytes.Buffer)
 
 	t, err := template.New("secretManifestTmpl").Parse(secretManifestTmpl)
