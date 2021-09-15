@@ -4,12 +4,34 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
+	"time"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
-	"net/http"
-	"time"
 )
+
+// 10. 37.35
+// 9. 31.00
+// 8. 25.73
+// 7. 21.35
+// 6. 17.72
+// 5. 14.71
+// 4. 12.21
+// 3. 10.13
+// 2. 8.41
+// total: 2.97 min
+
+var frontoff = wait.Backoff{
+	Cap:      3 * time.Minute,
+	Steps:    10,
+	Duration: 45 * time.Second,
+	Factor:   0.83,
+	Jitter:   0.1,
+}
 
 type Client struct {
 	RestClient *corev1.CoreV1Client
@@ -47,9 +69,9 @@ func NewClient(cfg *Config) (*Client, error) {
 func (c *Client) Get(ctx context.Context, controllerName, controllerNamespace, path string) ([]byte, error) {
 	var resp io.ReadCloser
 
-	err := retry.OnError(retry.DefaultRetry, func(err error) bool {
-		// we want to retry regardless of given error
-		return true
+	err := retry.OnError(frontoff, func(err error) bool {
+		// if the service is not found it might be that the cluster is being bootstrapped
+		return errors.IsNotFound(err)
 	}, func() error {
 		var innerErr error
 		resp, innerErr = c.RestClient.
