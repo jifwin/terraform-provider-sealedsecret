@@ -1,11 +1,10 @@
-package sealedsecret
+package provider
 
 import (
 	"context"
-	"github.com/akselleirv/sealedsecret/git"
-	"github.com/akselleirv/sealedsecret/kubeseal"
-
-	"github.com/akselleirv/sealedsecret/k8s"
+	"github.com/akselleirv/sealedsecret/internal/git"
+	"github.com/akselleirv/sealedsecret/internal/k8s"
+	"github.com/akselleirv/sealedsecret/internal/kubeseal"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )

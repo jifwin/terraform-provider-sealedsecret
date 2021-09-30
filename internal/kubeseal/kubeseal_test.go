@@ -2,7 +2,7 @@ package kubeseal
 
 import (
 	"context"
-	"github.com/akselleirv/sealedsecret/k8s"
+	"github.com/akselleirv/sealedsecret/internal/k8s"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/util/yaml"

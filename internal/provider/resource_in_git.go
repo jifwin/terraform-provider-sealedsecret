@@ -1,4 +1,4 @@
-package sealedsecret
+package provider
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"crypto/sha1"
 	"errors"
 	"fmt"
-	"github.com/akselleirv/sealedsecret/k8s"
-	"github.com/akselleirv/sealedsecret/kubeseal"
+	"github.com/akselleirv/sealedsecret/internal/k8s"
+	"github.com/akselleirv/sealedsecret/internal/kubeseal"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"

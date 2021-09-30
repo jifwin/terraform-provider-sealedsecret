@@ -17,9 +17,9 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func TestGet(t *testing.T) {
 	tests := []struct {
-		Name                    string
-		Mock                    roundTripFunc
-		ExpectedResponse        string
+		Name             string
+		Mock             roundTripFunc
+		ExpectedResponse string
 		ExpectedErr             string
 		ExpectedNumberOfRetries int
 	}{

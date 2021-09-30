@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"fmt"
-	"github.com/akselleirv/sealedsecret/k8s"
+	"github.com/akselleirv/sealedsecret/internal/k8s"
 	ssv1alpha1 "github.com/bitnami-labs/sealed-secrets/pkg/apis/sealed-secrets/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

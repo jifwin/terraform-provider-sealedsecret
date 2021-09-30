@@ -7,11 +7,15 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"io"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 )
 
 type Git struct {
@@ -26,7 +30,10 @@ type BasicAuth struct {
 	Username, Token string
 }
 
-const remoteName = "origin"
+const (
+	remoteName         = "origin"
+	providerBranchName = "sealedsecrets-#"
+)
 
 type Giter interface {
 	Push(ctx context.Context, file []byte, path string) error
@@ -47,6 +54,21 @@ func NewGit(ctx context.Context, url string, auth BasicAuth) (*Git, error) {
 	if err != nil {
 		return nil, err
 	}
+	branchName, err := findBranchName(r)
+	if err != nil {
+		return nil, err
+	}
+	wt, err := r.Worktree()
+	if err != nil {
+		return nil, err
+	}
+	err = wt.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.NewBranchReferenceName(branchName),
+		Create: true,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &Git{repo: r, fs: fs, auth: ba, url: url, mu: &sync.Mutex{}}, nil
 }
 
@@ -57,7 +79,7 @@ func (g *Git) Push(ctx context.Context, file []byte, filePath string) error {
 	// when multiple resources are created we need to update the git refs head after push
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	
+
 	newFile, err := g.fs.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("unable to create file: %w", err)
@@ -118,9 +140,11 @@ func (g *Git) DeleteFile(ctx context.Context, filePath string) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Commit(createCommitMsg("deleted", filePath), &git.CommitOptions{Author: &object.Signature{
-		Name: "SEALEDSECRET-PROVIDER",
-	}})
+	_, err = w.Commit(createCommitMsg("deleted", filePath), &git.CommitOptions{
+		Author: &object.Signature{
+			Name: "SEALEDSECRET-PROVIDER",
+			When: time.Now(),
+		}})
 	if err != nil {
 		return err
 	}
@@ -136,5 +160,24 @@ func (g *Git) DeleteFile(ctx context.Context, filePath string) error {
 
 func createCommitMsg(action, filePath string) string {
 	return fmt.Sprintf("[SEALEDSECRET-PROVIDER] %s --> %s", action, filePath)
+}
 
+// findBranchName creates a branch name string 'sealedsecrets-#' with prefix of number of branches with that name.
+// This is done to ensure the uniqueness of the name.
+func findBranchName(r *git.Repository) (string, error) {
+	branches, err := r.Branches()
+	if err != nil {
+		return "", err
+	}
+	var totalBranches int
+	err = branches.ForEach(func(ref *plumbing.Reference) error {
+		if strings.Contains(ref.Name().String(), providerBranchName) {
+			totalBranches++
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return providerBranchName + strconv.Itoa(totalBranches), nil
 }
