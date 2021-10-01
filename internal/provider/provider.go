@@ -18,6 +18,7 @@ const (
 	controllerName       = "controller_name"
 	controllerNamespace  = "controller_namespace"
 	gitStr               = "git"
+	gitlabStr            = "gitlab"
 	sealedSecretInGit    = "sealedsecret_in_git"
 )
 
@@ -77,6 +78,24 @@ func Provider() *schema.Provider {
 							Sensitive:   true,
 							Description: "Token to be used for the basic auth.",
 						},
+						sourceBranch: {
+							Type:        schema.TypeString,
+							Default:     "main",
+							Optional:    true,
+							Description: "Name of the branch to be used. If the branch does not exist it will be created.",
+						},
+						targetBranch: {
+							Type:        schema.TypeString,
+							Default:     "main",
+							Optional:    true,
+							Description: "Name of the branch that should be merged to. Gitlab value must be set to true in order to create a merge request.",
+						},
+						gitlabStr: {
+							Type:        schema.TypeBool,
+							Default:     false,
+							Optional:    true,
+							Description: "If set to true the provider will create a merge request from source branch to target branch. This is currently supported for Gitlab.",
+						},
 					},
 				},
 			},
@@ -105,6 +124,7 @@ type ProviderConfig struct {
 	ControllerNamespace string
 	Client              *k8s.Client
 	Git                 *git.Git
+	IsGitlabRepo        bool
 	PublicKeyResolver   kubeseal.PKResolverFunc
 }
 
@@ -113,7 +133,7 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 	k8sCfg := getMapFromSchemaSet(rd, kubernetes)
 	gitCfg := getMapFromSchemaSet(rd, gitStr)
 
-	g, err := git.NewGit(ctx, gitCfg[url].(string), git.BasicAuth{
+	g, err := git.NewGit(ctx, gitCfg[url].(string), gitCfg[sourceBranch].(string), gitCfg[targetBranch].(string), git.BasicAuth{
 		Username: gitCfg[username].(string),
 		Token:    gitCfg[token].(string),
 	})
@@ -136,6 +156,7 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 		ControllerNamespace: cNs,
 		Client:              c,
 		Git:                 g,
+		IsGitlabRepo:        gitCfg[gitlabStr].(bool),
 		PublicKeyResolver:   kubeseal.FetchPK(ctx, c, cName, cNs),
 	}, nil
 }

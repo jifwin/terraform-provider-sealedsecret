@@ -11,9 +11,6 @@ terraform {
   }
 }
 
-locals {
-
-}
 
 provider "sealedsecret" {
   controller_name      = "sealed-secret-controller-sealed-secrets"
@@ -30,6 +27,9 @@ provider "sealedsecret" {
     url      = var.git_url
     username = var.git_username
     token    = var.git_token
+
+    source_branch = "sealed-secret-update"
+    gitlab        = true
   }
 }
 
@@ -42,9 +42,10 @@ resource "sealedsecret_in_git" "example" {
   filepath  = "sealed-file.yaml"
 
   depends_on = [
-    helm_release.sealed_secret_controller
+    // helm_release.sealed_secret_controller
   ]
 }
+
 
 provider "helm" {
   kubernetes {
@@ -56,9 +57,9 @@ provider "helm" {
 }
 
 resource "helm_release" "sealed_secret_controller" {
-  name       = "sealed-secret-controller"
-  repository = "https://bitnami-labs.github.io/sealed-secrets"
-  chart      = "sealed-secrets"
+  name         = "sealed-secret-controller"
+  repository   = "https://bitnami-labs.github.io/sealed-secrets"
+  chart        = "sealed-secrets"
 
   set {
     name  = "namespace"

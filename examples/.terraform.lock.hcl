@@ -24,6 +24,6 @@ provider "terraform.example.com/local/sealedsecret" {
   version     = "0.0.1"
   constraints = "0.0.1"
   hashes = [
-    "h1:H5ww3OtcjN0TryQ4BETQ10fFpon7432f6Z+6RuNqWCY=",
+    "h1:Qi/Nx67Ol6r7VNwwESBVE+8t3HziuG2Oh9wJSitPrjU=",
   ]
 }

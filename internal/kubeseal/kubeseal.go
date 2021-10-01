@@ -7,6 +7,7 @@ import (
 	"github.com/akselleirv/sealedsecret/internal/k8s"
 	ssv1alpha1 "github.com/bitnami-labs/sealed-secrets/pkg/apis/sealed-secrets/v1alpha1"
 	v1 "k8s.io/api/core/v1"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimeserializer "k8s.io/apimachinery/pkg/runtime/serializer"
@@ -17,26 +18,35 @@ import (
 type PKResolverFunc = func() (*rsa.PublicKey, error)
 
 func FetchPK(ctx context.Context, c k8s.Clienter, controllerName, controllerNamespace string) PKResolverFunc {
-	var pk *rsa.PublicKey
+	doReq := func() (*rsa.PublicKey, error) {
+		resp, err := c.Get(ctx, controllerName, controllerNamespace, "/v1/cert.pem")
+		if err != nil {
+			return nil, err
+		}
+		certs, err := cert.ParseCertsPEM(resp)
+		if err != nil {
+			return nil, err
+		}
+
+		pk, ok := certs[0].PublicKey.(*rsa.PublicKey)
+		if !ok {
+			err = fmt.Errorf("expected public key, got: %v", certs[0].PublicKey)
+		}
+		return pk, nil
+	}
+
+	var publicKey *rsa.PublicKey
 	var err error
-	resultFunc := func() (*rsa.PublicKey, error) {
-		return pk, err
-	}
-	resp, err := c.Get(ctx, controllerName, controllerNamespace, "/v1/cert.pem")
-	if err != nil {
-		return resultFunc
-	}
-	certs, err := cert.ParseCertsPEM(resp)
-	if err != nil {
-		return resultFunc
-	}
 
-	pk, ok := certs[0].PublicKey.(*rsa.PublicKey)
-	if !ok {
-		err = fmt.Errorf("expected public key, got: %v", certs[0].PublicKey)
+	return func() (*rsa.PublicKey, error) {
+		if err != nil && k8sErrors.IsNotFound(err) || k8sErrors.IsServiceUnavailable(err) {
+			publicKey, err = doReq()
+		}
+		if publicKey == nil && err == nil {
+			publicKey, err = doReq()
+		}
+		return publicKey, err
 	}
-
-	return resultFunc
 }
 
 func SealSecret(secret v1.Secret, pk *rsa.PublicKey) ([]byte, error) {

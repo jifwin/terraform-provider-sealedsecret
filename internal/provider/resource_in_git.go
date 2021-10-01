@@ -9,9 +9,12 @@ import (
 	"github.com/akselleirv/sealedsecret/internal/k8s"
 	"github.com/akselleirv/sealedsecret/internal/kubeseal"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"os"
+	"time"
 )
 
 const (
@@ -20,11 +23,15 @@ const (
 	secretType    = "type"
 	data          = "data"
 	stringData    = "string_data"
-	username      = "username"
-	token         = "token"
-	url           = "url"
 	filepath      = "filepath"
 	publicKeyHash = "public_key_hash"
+)
+const (
+	username     = "username"
+	token        = "token"
+	url          = "url"
+	sourceBranch = "source_branch"
+	targetBranch = "target_branch"
 )
 
 type SealedSecret struct {
@@ -93,7 +100,7 @@ func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{
 	provider := meta.(ProviderConfig)
 	filePath := d.Get(filepath).(string)
 
-	sealedSecret, err := createSealedSecret(&provider, d)
+	sealedSecret, err := createSealedSecret(ctx, &provider, d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -101,6 +108,11 @@ func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{
 	err = provider.Git.Push(ctx, sealedSecret, filePath)
 	if err != nil {
 		return diag.FromErr(err)
+	}
+	if provider.IsGitlabRepo {
+		if err = provider.Git.CreateMergeRequest(); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 	d.SetId(filePath)
 	if err := d.Set(data, d.Get(data).(map[string]interface{})); err != nil {
@@ -163,10 +175,15 @@ func resourceUpdate(ctx context.Context, d *schema.ResourceData, meta interface{
 	return resourceCreate(ctx, d, meta)
 }
 func resourceDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	return diag.FromErr(meta.(ProviderConfig).Git.DeleteFile(ctx, d.Get(filepath).(string)))
+	provider := meta.(ProviderConfig)
+	if err := provider.Git.DeleteFile(ctx, d.Get(filepath).(string)); err != nil {
+		return diag.FromErr(err)
+	}
+
+	return diag.FromErr(provider.Git.CreateMergeRequest())
 }
 
-func createSealedSecret(provider *ProviderConfig, d *schema.ResourceData) ([]byte, error) {
+func createSealedSecret(ctx context.Context, provider *ProviderConfig, d *schema.ResourceData) ([]byte, error) {
 	rawSecret := k8s.SecretManifest{
 		Name:      d.Get(name).(string),
 		Namespace: d.Get(namespace).(string),
@@ -188,12 +205,24 @@ func createSealedSecret(provider *ProviderConfig, d *schema.ResourceData) ([]byt
 		return nil, err
 	}
 
-	pk, err := provider.PublicKeyResolver()
+	var pk *rsa.PublicKey
+	err = resource.RetryContext(ctx, 3*time.Minute, func() *resource.RetryError {
+		var err error
+		pk, err = provider.PublicKeyResolver()
+		if err != nil {
+			if k8sErrors.IsNotFound(err) || k8sErrors.IsServiceUnavailable(err) {
+				return resource.RetryableError(fmt.Errorf("waiting for sealed-secret-controller to be deployed: %w", err))
+			}
+			return resource.NonRetryableError(err)
+		}
+		return nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	return kubeseal.SealSecret(secret,pk)
+	return kubeseal.SealSecret(secret, pk)
 }
 
 // The public key is hashed since we want to force update the resource if the key changes.

@@ -7,11 +7,12 @@ import (
 	"net/http"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	"net/http"
+	"time"
+
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/retry"
 )
 
 // 10. 37.35
@@ -67,22 +68,14 @@ func NewClient(cfg *Config) (*Client, error) {
 }
 
 func (c *Client) Get(ctx context.Context, controllerName, controllerNamespace, path string) ([]byte, error) {
-	var resp io.ReadCloser
+	resp, err := c.RestClient.
+		Services(controllerNamespace).
+		ProxyGet("http", controllerName, "", path, nil).
+		Stream(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	err := retry.OnError(frontoff, func(err error) bool {
-		// if the service is not found it might be that the cluster is being bootstrapped
-		return errors.IsNotFound(err)
-	}, func() error {
-		var innerErr error
-		resp, innerErr = c.RestClient.
-			Services(controllerNamespace).
-			ProxyGet("http", controllerName, "", path, nil).
-			Stream(ctx)
-		if innerErr != nil {
-			return innerErr
-		}
-		return nil
-	})
 	if err != nil {
 		return nil, fmt.Errorf("request to k8s cluster failed: %w", err)
 	}
