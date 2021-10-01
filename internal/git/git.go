@@ -4,50 +4,75 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/akselleirv/sealedsecret/internal/gitlab"
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"io"
+	"log"
+	"strings"
 	"sync"
+	"time"
 )
 
 type Git struct {
-	url  string
-	repo *git.Repository
-	fs   billy.Filesystem
-	auth *http.BasicAuth
-	mu   *sync.Mutex
+	url          string
+	sourceBranch string
+	targetBranch string
+	repo         *git.Repository
+	fs           billy.Filesystem
+	auth         *http.BasicAuth
+	mu           *sync.Mutex
 }
 
 type BasicAuth struct {
 	Username, Token string
 }
 
-const remoteName = "origin"
+const (
+	remoteName = "origin"
+)
 
 type Giter interface {
 	Push(ctx context.Context, file []byte, path string) error
 	GetFile(filePath string) ([]byte, error)
 	DeleteFile(ctx context.Context, filePath string) error
+	CreateMergeRequest() error
 }
 
-func NewGit(ctx context.Context, url string, auth BasicAuth) (*Git, error) {
-	ba := &http.BasicAuth{
+func NewGit(ctx context.Context, url, sourceBranch, targetBranch string, auth BasicAuth) (*Git, error) {
+	basicAuth := &http.BasicAuth{
 		Username: auth.Username,
 		Password: auth.Token,
 	}
 	fs := memfs.New()
+
+	logDebug("Cloning Git repository with url " + url)
 	r, err := git.CloneContext(ctx, memory.NewStorage(), fs, &git.CloneOptions{
 		URL:  url,
-		Auth: ba,
+		Auth: basicAuth,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Git{repo: r, fs: fs, auth: ba, url: url, mu: &sync.Mutex{}}, nil
+
+	if err = createBranch(r, sourceBranch); err != nil {
+		return nil, err
+	}
+
+	return &Git{
+		repo:         r,
+		fs:           fs,
+		auth:         basicAuth,
+		url:          url,
+		sourceBranch: sourceBranch,
+		targetBranch: targetBranch,
+		mu:           &sync.Mutex{},
+	}, nil
 }
 
 // Push creates the new file and pushes the changes to Git remote.
@@ -57,7 +82,7 @@ func (g *Git) Push(ctx context.Context, file []byte, filePath string) error {
 	// when multiple resources are created we need to update the git refs head after push
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	
+
 	newFile, err := g.fs.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("unable to create file: %w", err)
@@ -76,21 +101,25 @@ func (g *Git) Push(ctx context.Context, file []byte, filePath string) error {
 	if err != nil {
 		return err
 	}
+
+	if err != nil {
+		return err
+	}
 	_, err = w.Add(filePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to add: %w", err)
 	}
-	_, err = w.Commit(createCommitMsg("created", filePath), &git.CommitOptions{})
+	_, err = w.Commit(createCommitMsg("created", filePath), commitOpts())
 	if err != nil {
-		return err
-	}
-
-	if err := g.repo.PushContext(ctx, &git.PushOptions{RemoteName: remoteName, Auth: g.auth}); err != nil {
-		return err
+		return fmt.Errorf("unable to commit: %w", err)
 	}
 
 	if err := g.repo.FetchContext(ctx, &git.FetchOptions{RemoteName: remoteName, Auth: g.auth}); err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
-		return err
+		return fmt.Errorf("unable to fetch: %w", err)
+	}
+
+	if err := g.repo.PushContext(ctx, &git.PushOptions{RemoteName: remoteName, Auth: g.auth, Force: true}); err != nil {
+		return fmt.Errorf("unable to push: %w", err)
 	}
 
 	return nil
@@ -118,13 +147,11 @@ func (g *Git) DeleteFile(ctx context.Context, filePath string) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Commit(createCommitMsg("deleted", filePath), &git.CommitOptions{Author: &object.Signature{
-		Name: "SEALEDSECRET-PROVIDER",
-	}})
+	_, err = w.Commit(createCommitMsg("deleted", filePath), commitOpts())
 	if err != nil {
 		return err
 	}
-	if err := g.repo.PushContext(ctx, &git.PushOptions{RemoteName: "origin", Auth: g.auth}); err != nil {
+	if err := g.repo.PushContext(ctx, &git.PushOptions{RemoteName: remoteName, Auth: g.auth}); err != nil {
 		return err
 	}
 
@@ -134,7 +161,46 @@ func (g *Git) DeleteFile(ctx context.Context, filePath string) error {
 	return nil
 }
 
+func (g *Git) CreateMergeRequest() error {
+	return gitlab.CreateMergeRequest(g.url, g.auth.Password, g.sourceBranch, g.targetBranch)
+}
+
 func createCommitMsg(action, filePath string) string {
 	return fmt.Sprintf("[SEALEDSECRET-PROVIDER] %s --> %s", action, filePath)
+}
 
+func commitOpts() *git.CommitOptions {
+	return &git.CommitOptions{
+		Author: &object.Signature{
+			Name: "SEALEDSECRET-PROVIDER",
+			When: time.Now(),
+		}}
+}
+
+// createBranch creates a branch if it does not exist and ignores the call if it exists.
+func createBranch(r *git.Repository, branchName string) error {
+	wt, err := r.Worktree()
+	if err != nil {
+		return err
+	}
+	err = wt.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.NewBranchReferenceName(branchName),
+		Create: true,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "already exists") {
+			logDebug("Reusing branch " + branchName)
+			return wt.Checkout(&git.CheckoutOptions{
+				Branch: plumbing.NewBranchReferenceName(branchName),
+				Create: false,
+			})
+		}
+		return err
+	}
+	logDebug("Creating branch with name " + branchName)
+	return err
+}
+
+func logDebug(msg string) {
+	log.Printf("[DEBUG] %s\n", msg)
 }

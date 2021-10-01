@@ -1,11 +1,10 @@
-package sealedsecret
+package provider
 
 import (
 	"context"
-	"github.com/akselleirv/sealedsecret/git"
-	"github.com/akselleirv/sealedsecret/kubeseal"
-
-	"github.com/akselleirv/sealedsecret/k8s"
+	"github.com/akselleirv/sealedsecret/internal/git"
+	"github.com/akselleirv/sealedsecret/internal/k8s"
+	"github.com/akselleirv/sealedsecret/internal/kubeseal"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -19,6 +18,7 @@ const (
 	controllerName       = "controller_name"
 	controllerNamespace  = "controller_namespace"
 	gitStr               = "git"
+	gitlabStr            = "gitlab"
 	sealedSecretInGit    = "sealedsecret_in_git"
 )
 
@@ -78,6 +78,24 @@ func Provider() *schema.Provider {
 							Sensitive:   true,
 							Description: "Token to be used for the basic auth.",
 						},
+						sourceBranch: {
+							Type:        schema.TypeString,
+							Default:     "main",
+							Optional:    true,
+							Description: "Name of the branch to be used. If the branch does not exist it will be created.",
+						},
+						targetBranch: {
+							Type:        schema.TypeString,
+							Default:     "main",
+							Optional:    true,
+							Description: "Name of the branch that should be merged to. Gitlab value must be set to true in order to create a merge request.",
+						},
+						gitlabStr: {
+							Type:        schema.TypeBool,
+							Default:     false,
+							Optional:    true,
+							Description: "If set to true the provider will create a merge request from source branch to target branch. This is currently supported for Gitlab.",
+						},
 					},
 				},
 			},
@@ -106,6 +124,7 @@ type ProviderConfig struct {
 	ControllerNamespace string
 	Client              *k8s.Client
 	Git                 *git.Git
+	IsGitlabRepo        bool
 	PublicKeyResolver   kubeseal.PKResolverFunc
 }
 
@@ -114,7 +133,7 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 	k8sCfg := getMapFromSchemaSet(rd, kubernetes)
 	gitCfg := getMapFromSchemaSet(rd, gitStr)
 
-	g, err := git.NewGit(ctx, gitCfg[url].(string), git.BasicAuth{
+	g, err := git.NewGit(ctx, gitCfg[url].(string), gitCfg[sourceBranch].(string), gitCfg[targetBranch].(string), git.BasicAuth{
 		Username: gitCfg[username].(string),
 		Token:    gitCfg[token].(string),
 	})
@@ -137,7 +156,8 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 		ControllerNamespace: cNs,
 		Client:              c,
 		Git:                 g,
-		PublicKeyResolver:   kubeseal.FetchPK(ctx, c, cName, cNs),
+		IsGitlabRepo:        gitCfg[gitlabStr].(bool),
+		PublicKeyResolver:   kubeseal.FetchPK(c, cName, cNs),
 	}, nil
 }
 

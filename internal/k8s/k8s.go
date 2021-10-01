@@ -7,23 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/retry"
 )
-
-// 10. 37.35
-// 9. 31.00
-// 8. 25.73
-// 7. 21.35
-// 6. 17.72
-// 5. 14.71
-// 4. 12.21
-// 3. 10.13
-// 2. 8.41
-// total: 2.97 min
 
 var frontoff = wait.Backoff{
 	Cap:      3 * time.Minute,
@@ -67,22 +54,11 @@ func NewClient(cfg *Config) (*Client, error) {
 }
 
 func (c *Client) Get(ctx context.Context, controllerName, controllerNamespace, path string) ([]byte, error) {
-	var resp io.ReadCloser
+	resp, err := c.RestClient.
+		Services(controllerNamespace).
+		ProxyGet("http", controllerName, "", path, nil).
+		Stream(ctx)
 
-	err := retry.OnError(frontoff, func(err error) bool {
-		// if the service is not found it might be that the cluster is being bootstrapped
-		return errors.IsNotFound(err)
-	}, func() error {
-		var innerErr error
-		resp, innerErr = c.RestClient.
-			Services(controllerNamespace).
-			ProxyGet("http", controllerName, "", path, nil).
-			Stream(ctx)
-		if innerErr != nil {
-			return innerErr
-		}
-		return nil
-	})
 	if err != nil {
 		return nil, fmt.Errorf("request to k8s cluster failed: %w", err)
 	}
