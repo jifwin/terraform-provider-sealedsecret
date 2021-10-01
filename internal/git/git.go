@@ -13,6 +13,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"io"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -49,6 +50,8 @@ func NewGit(ctx context.Context, url, sourceBranch, targetBranch string, auth Ba
 		Password: auth.Token,
 	}
 	fs := memfs.New()
+
+	logDebug("Cloning Git repository with url " + url)
 	r, err := git.CloneContext(ctx, memory.NewStorage(), fs, &git.CloneOptions{
 		URL:  url,
 		Auth: basicAuth,
@@ -186,6 +189,7 @@ func createBranch(r *git.Repository, branchName string) error {
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
+			logDebug("Reusing branch " + branchName)
 			return wt.Checkout(&git.CheckoutOptions{
 				Branch: plumbing.NewBranchReferenceName(branchName),
 				Create: false,
@@ -193,5 +197,10 @@ func createBranch(r *git.Repository, branchName string) error {
 		}
 		return err
 	}
+	logDebug("Creating branch with name " + branchName)
 	return err
+}
+
+func logDebug(msg string) {
+	log.Printf("[DEBUG] %s\n", msg)
 }

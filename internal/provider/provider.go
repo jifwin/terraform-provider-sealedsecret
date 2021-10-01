@@ -157,7 +157,7 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 		Client:              c,
 		Git:                 g,
 		IsGitlabRepo:        gitCfg[gitlabStr].(bool),
-		PublicKeyResolver:   kubeseal.FetchPK(ctx, c, cName, cNs),
+		PublicKeyResolver:   kubeseal.FetchPK(c, cName, cNs),
 	}, nil
 }
 

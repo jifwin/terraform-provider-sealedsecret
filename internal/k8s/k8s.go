@@ -72,9 +72,6 @@ func (c *Client) Get(ctx context.Context, controllerName, controllerNamespace, p
 		Services(controllerNamespace).
 		ProxyGet("http", controllerName, "", path, nil).
 		Stream(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	if err != nil {
 		return nil, fmt.Errorf("request to k8s cluster failed: %w", err)

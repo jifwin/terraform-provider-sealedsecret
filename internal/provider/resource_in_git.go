@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"log"
 	"os"
 	"time"
 )
@@ -100,19 +101,25 @@ func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{
 	provider := meta.(ProviderConfig)
 	filePath := d.Get(filepath).(string)
 
+	logDebug("Creating sealed secret for path " + filePath)
 	sealedSecret, err := createSealedSecret(ctx, &provider, d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	logDebug("Successfully created sealed secret for path " + filePath)
 
+	logDebug("Pushing sealed secret for " + filePath)
 	err = provider.Git.Push(ctx, sealedSecret, filePath)
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	logDebug("Successfully pushed sealed secret for " + filePath)
 	if provider.IsGitlabRepo {
+		logDebug("Creating merge request")
 		if err = provider.Git.CreateMergeRequest(); err != nil {
 			return diag.FromErr(err)
 		}
+		logDebug("Successfully created merge request")
 	}
 	d.SetId(filePath)
 	if err := d.Set(data, d.Get(data).(map[string]interface{})); err != nil {
@@ -152,7 +159,7 @@ func resourceRead(ctx context.Context, d *schema.ResourceData, meta interface{})
 		return diag.FromErr(err)
 	}
 
-	pk, err := provider.PublicKeyResolver()
+	pk, err := provider.PublicKeyResolver(ctx)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -208,13 +215,16 @@ func createSealedSecret(ctx context.Context, provider *ProviderConfig, d *schema
 	var pk *rsa.PublicKey
 	err = resource.RetryContext(ctx, 3*time.Minute, func() *resource.RetryError {
 		var err error
-		pk, err = provider.PublicKeyResolver()
+		logDebug("Trying to fetch the public key")
+		pk, err = provider.PublicKeyResolver(ctx)
 		if err != nil {
 			if k8sErrors.IsNotFound(err) || k8sErrors.IsServiceUnavailable(err) {
+				logDebug("Retrying to fetch the public key: " + err.Error())
 				return resource.RetryableError(fmt.Errorf("waiting for sealed-secret-controller to be deployed: %w", err))
 			}
 			return resource.NonRetryableError(err)
 		}
+		logDebug("Successfully fetched the public key")
 		return nil
 	})
 
@@ -229,4 +239,8 @@ func createSealedSecret(ctx context.Context, provider *ProviderConfig, d *schema
 // Hashing the key also saves us some space.
 func hashPublicKey(pk *rsa.PublicKey) string {
 	return fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("%v%v", pk.N, pk.E))))
+}
+
+func logDebug(msg string) {
+	log.Printf("[DEBUG] %s\n", msg)
 }

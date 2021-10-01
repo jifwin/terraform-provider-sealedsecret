@@ -15,10 +15,10 @@ import (
 	"k8s.io/client-go/util/cert"
 )
 
-type PKResolverFunc = func() (*rsa.PublicKey, error)
+type PKResolverFunc = func(ctx context.Context) (*rsa.PublicKey, error)
 
-func FetchPK(ctx context.Context, c k8s.Clienter, controllerName, controllerNamespace string) PKResolverFunc {
-	doReq := func() (*rsa.PublicKey, error) {
+func FetchPK(c k8s.Clienter, controllerName, controllerNamespace string) PKResolverFunc {
+	doReq := func(ctx context.Context) (*rsa.PublicKey, error) {
 		resp, err := c.Get(ctx, controllerName, controllerNamespace, "/v1/cert.pem")
 		if err != nil {
 			return nil, err
@@ -38,12 +38,12 @@ func FetchPK(ctx context.Context, c k8s.Clienter, controllerName, controllerName
 	var publicKey *rsa.PublicKey
 	var err error
 
-	return func() (*rsa.PublicKey, error) {
+	return func(ctx context.Context) (*rsa.PublicKey, error) {
 		if err != nil && k8sErrors.IsNotFound(err) || k8sErrors.IsServiceUnavailable(err) {
-			publicKey, err = doReq()
+			publicKey, err = doReq(ctx)
 		}
 		if publicKey == nil && err == nil {
-			publicKey, err = doReq()
+			publicKey, err = doReq(ctx)
 		}
 		return publicKey, err
 	}

@@ -66,3 +66,4 @@ resource "helm_release" "sealed_secret_controller" {
     value = "kube-system"
   }
 }
+

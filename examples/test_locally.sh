@@ -11,6 +11,7 @@ cd examples/
 rm -rf .terraform || true
 rm .terraform.lock.hcl || true
 rm terraform.tfstate || true
+rm terraform.tfstate.backup || true
 
 terraform init
-terraform apply
+terraform apply -auto-approve

@@ -56,7 +56,7 @@ func (m *K8sClientMock) Get(ctx context.Context, controllerName, controllerNames
 func TestFetchPK(t *testing.T) {
 	m := K8sClientMock{}
 	m.On(getFunc, context.Background(), "name", "ns", "/v1/cert.pem").Return(pem, nil)
-	pk, err := FetchPK(context.Background(), &m, "name", "ns")()
+	pk, err := FetchPK(&m, "name", "ns")(context.Background())
 
 	assert.Nil(t, err)
 	assert.Equal(t, 65537, pk.E)
@@ -72,7 +72,7 @@ func TestSealSecret(t *testing.T) {
 
 	m := K8sClientMock{}
 	m.On(getFunc, context.Background(), "name", "ns", "/v1/cert.pem").Return(pem, nil)
-	pk, err := FetchPK(context.Background(), &m, "name", "ns")()
+	pk, err := FetchPK(&m, "name", "ns")(context.Background())
 	assert.Nil(t, err)
 
 	secret, err := k8s.CreateSecret(&sm)
@@ -172,11 +172,11 @@ func TestRequestIsRetriedOnRetryableError(t *testing.T) {
 			m.On(getFunc, context.Background(), "name", "ns", "/v1/cert.pem").
 				Return(tc.ReturnArgs.Resp, tc.ReturnArgs.Err)
 
-			pkResolver := FetchPK(context.Background(), &m, "name", "ns")
+			pkResolver := FetchPK(&m, "name", "ns")
 			for i := 0; i < timesToCallFetch; i++ {
-				tc.Validate(pkResolver())
+				tc.Validate(pkResolver(context.Background()))
 			}
-			
+
 			m.AssertNumberOfCalls(t, getFunc, tc.NumberOfCallsExpected)
 		})
 	}
