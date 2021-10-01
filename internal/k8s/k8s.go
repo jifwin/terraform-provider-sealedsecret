@@ -7,24 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"net/http"
-	"time"
-
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 )
-
-// 10. 37.35
-// 9. 31.00
-// 8. 25.73
-// 7. 21.35
-// 6. 17.72
-// 5. 14.71
-// 4. 12.21
-// 3. 10.13
-// 2. 8.41
-// total: 2.97 min
 
 var frontoff = wait.Backoff{
 	Cap:      3 * time.Minute,
