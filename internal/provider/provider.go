@@ -137,6 +137,9 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 		Username: gitCfg[username].(string),
 		Token:    gitCfg[token].(string),
 	})
+	if err != nil {
+		return nil, diag.FromErr(err)
+	}
 
 	c, err := k8s.NewClient(&k8s.Config{
 		Host:          k8sCfg[host].(string),
