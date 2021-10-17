@@ -6,6 +6,10 @@ import (
 	"crypto/sha1"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"time"
+
 	"github.com/akselleirv/sealedsecret/internal/k8s"
 	"github.com/akselleirv/sealedsecret/internal/kubeseal"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -13,9 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"log"
-	"os"
-	"time"
 )
 
 const (
@@ -187,7 +188,11 @@ func resourceDelete(ctx context.Context, d *schema.ResourceData, meta interface{
 		return diag.FromErr(err)
 	}
 
-	return diag.FromErr(provider.Git.CreateMergeRequest())
+	if provider.IsGitlabRepo {
+		return diag.FromErr(provider.Git.CreateMergeRequest())
+	}
+
+	return nil
 }
 
 func createSealedSecret(ctx context.Context, provider *ProviderConfig, d *schema.ResourceData) ([]byte, error) {
