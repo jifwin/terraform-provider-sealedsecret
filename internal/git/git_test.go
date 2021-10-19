@@ -4,6 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-git/v5"
@@ -11,12 +18,6 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/stretchr/testify/assert"
-	"io"
-	"os"
-	"strings"
-	"sync"
-	"testing"
-	"time"
 )
 
 const (
@@ -101,6 +102,12 @@ func TestGit_DeleteFile(t *testing.T) {
 
 	fs := cloneBranch(t, g)
 	_, err = fs.Open(testPath)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestGit_DeleteFile_NoExist(t *testing.T) {
+	g := newGit(t, testBranchName)
+	err := g.DeleteFile(context.Background(), "testpath/test.txt")
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 

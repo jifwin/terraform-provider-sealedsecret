@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/format/index"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage/memory"
@@ -145,6 +147,9 @@ func (g *Git) DeleteFile(ctx context.Context, filePath string) error {
 		return err
 	}
 	_, err = w.Remove(filePath)
+	if err != nil && errors.Is(err, index.ErrEntryNotFound) {
+		return os.ErrNotExist
+	}
 	if err != nil {
 		return err
 	}

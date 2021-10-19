@@ -184,13 +184,17 @@ func resourceUpdate(ctx context.Context, d *schema.ResourceData, meta interface{
 }
 func resourceDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	provider := meta.(ProviderConfig)
-	if err := provider.Git.DeleteFile(ctx, d.Get(filepath).(string)); err != nil {
+
+	err := provider.Git.DeleteFile(ctx, d.Get(filepath).(string))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return diag.FromErr(err)
 	}
 
 	if provider.IsGitlabRepo {
 		return diag.FromErr(provider.Git.CreateMergeRequest())
 	}
+
+	d.SetId("")
 
 	return nil
 }
