@@ -17,7 +17,6 @@ Creates a sealed secret and store it in yaml_content.
 
 ### Required
 
-- **filepath** (String) The filepath in the Git repository. Including the filename itself and extension
 - **name** (String) name of the secret, must be unique
 - **namespace** (String) namespace of the secret
 
