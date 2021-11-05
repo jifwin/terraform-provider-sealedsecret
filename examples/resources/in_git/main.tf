@@ -1,8 +1,8 @@
 terraform {
   required_providers {
     sealedsecret = {
-      version = "0.0.1"
-      source  = "terraform.example.com/local/sealedsecret"
+      version = ">=0.1.0"
+      source  = "akselleirv/sealedsecret"
     }
     helm         = {
       source  = "hashicorp/helm"
@@ -41,9 +41,6 @@ resource "sealedsecret_in_git" "example" {
   }
   filepath  = "sealed-file.yaml"
 
-  depends_on = [
-    // helm_release.sealed_secret_controller
-  ]
 }
 
 

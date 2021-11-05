@@ -51,10 +51,10 @@ type SealedSecret struct {
 
 func resourceInGit() *schema.Resource {
 	return &schema.Resource{
-		CreateContext: resourceCreate,
-		ReadContext:   resourceRead,
-		UpdateContext: resourceUpdate,
-		DeleteContext: resourceDelete,
+		CreateContext: resourceCreateInGit,
+		ReadContext:   resourceReadInGit,
+		UpdateContext: resourceUpdateInGit,
+		DeleteContext: resourceDeleteInGit,
 		Schema: map[string]*schema.Schema{
 			name: {
 				Type:        schema.TypeString,
@@ -98,12 +98,12 @@ func resourceInGit() *schema.Resource {
 	}
 }
 
-func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	provider := meta.(ProviderConfig)
+func resourceCreateInGit(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	provider := meta.(*ProviderConfig)
 	filePath := d.Get(filepath).(string)
 
 	logDebug("Creating sealed secret for path " + filePath)
-	sealedSecret, err := createSealedSecret(ctx, &provider, d)
+	sealedSecret, err := createSealedSecret(ctx, provider, d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -130,10 +130,10 @@ func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{
 		return diag.FromErr(err)
 	}
 
-	return resourceRead(ctx, d, meta)
+	return resourceReadInGit(ctx, d, meta)
 }
-func resourceRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	provider := meta.(ProviderConfig)
+func resourceReadInGit(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	provider := meta.(*ProviderConfig)
 
 	f, err := provider.Git.GetFile(d.Id())
 	if errors.Is(err, os.ErrNotExist) {
@@ -179,11 +179,11 @@ func resourceRead(ctx context.Context, d *schema.ResourceData, meta interface{})
 
 	return nil
 }
-func resourceUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	return resourceCreate(ctx, d, meta)
+func resourceUpdateInGit(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	return resourceCreateInGit(ctx, d, meta)
 }
-func resourceDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	provider := meta.(ProviderConfig)
+func resourceDeleteInGit(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	provider := meta.(*ProviderConfig)
 
 	err := provider.Git.DeleteFile(ctx, d.Get(filepath).(string))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"github.com/akselleirv/sealedsecret/internal/git"
 	"github.com/akselleirv/sealedsecret/internal/k8s"
 	"github.com/akselleirv/sealedsecret/internal/kubeseal"
@@ -58,7 +59,7 @@ func Provider() *schema.Provider {
 			gitStr: {
 				Type:        schema.TypeList,
 				MaxItems:    1,
-				Required:    true,
+				Optional:    true,
 				Description: "Git repository credentials to where the sealed secret should be stored.",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -114,7 +115,8 @@ func Provider() *schema.Provider {
 		},
 		ConfigureContextFunc: configureProvider,
 		ResourcesMap: map[string]*schema.Resource{
-			sealedSecretInGit: resourceInGit(),
+			sealedSecretInGit:    resourceInGit(),
+			"sealedsecret_local": resourceLocal(),
 		},
 	}
 }
@@ -129,16 +131,25 @@ type ProviderConfig struct {
 }
 
 func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{}, diag.Diagnostics) {
-	// this is safe since the TypeSet is set to required and max is 1
-	k8sCfg := getMapFromSchemaSet(rd, kubernetes)
-	gitCfg := getMapFromSchemaSet(rd, gitStr)
-
-	g, err := git.NewGit(ctx, gitCfg[url].(string), gitCfg[sourceBranch].(string), gitCfg[targetBranch].(string), git.BasicAuth{
-		Username: gitCfg[username].(string),
-		Token:    gitCfg[token].(string),
-	})
-	if err != nil {
-		return nil, diag.FromErr(err)
+	k8sCfg, ok := getMapFromSchemaSet(rd, kubernetes)
+	if !ok {
+		return nil, diag.FromErr(errors.New("k8s configuration is required"))
+	}
+	gitCfg, ok := getMapFromSchemaSet(rd, gitStr)
+	var g *git.Git
+	var isGitlab bool
+	if ok {
+		var err error
+		g, err = git.NewGit(ctx, gitCfg[url].(string), gitCfg[sourceBranch].(string), gitCfg[targetBranch].(string), git.BasicAuth{
+			Username: gitCfg[username].(string),
+			Token:    gitCfg[token].(string),
+		})
+		if err != nil {
+			return nil, diag.FromErr(err)
+		}
+		isGitlab = gitCfg[gitlabStr].(bool)
+	} else {
+		logDebug("skipping setting up git client since no config was provided")
 	}
 
 	c, err := k8s.NewClient(&k8s.Config{
@@ -154,16 +165,20 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 	cName := rd.Get(controllerName).(string)
 	cNs := rd.Get(controllerNamespace).(string)
 
-	return ProviderConfig{
+	return &ProviderConfig{
 		ControllerName:      cName,
 		ControllerNamespace: cNs,
 		Client:              c,
 		Git:                 g,
-		IsGitlabRepo:        gitCfg[gitlabStr].(bool),
+		IsGitlabRepo:        isGitlab,
 		PublicKeyResolver:   kubeseal.FetchPK(c, cName, cNs),
 	}, nil
 }
 
-func getMapFromSchemaSet(rd *schema.ResourceData, key string) map[string]interface{} {
-	return rd.Get(key).([]interface{})[0].(map[string]interface{})
+func getMapFromSchemaSet(rd *schema.ResourceData, key string) (map[string]interface{}, bool) {
+	m, ok := rd.GetOk(key)
+	if !ok {
+		return nil, ok
+	}
+	return m.([]interface{})[0].(map[string]interface{}), ok
 }
