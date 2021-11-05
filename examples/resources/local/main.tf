@@ -1,8 +1,8 @@
 terraform {
   required_providers {
     sealedsecret = {
-      version = ">=0.0.1"
-      source  = "akselleirv/local/sealedsecret"
+      version = ">=1.2.0"
+      source  = "akselleirv/sealedsecret"
     }
   }
 }
