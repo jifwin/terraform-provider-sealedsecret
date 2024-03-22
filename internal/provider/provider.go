@@ -38,14 +38,19 @@ func Provider() *schema.Provider {
 							Required:    true,
 							Description: "The hostname (in form of URI) of Kubernetes master.",
 						},
+						token: {
+							Type:        schema.TypeString,
+							Required:    false,
+							Description: "Bearer token for authentication",
+						},
 						clientCertificate: {
 							Type:        schema.TypeString,
-							Required:    true,
+							Required:    false,
 							Description: "PEM-encoded client certificate for TLS authentication.",
 						},
 						clientKey: {
 							Type:        schema.TypeString,
-							Required:    true,
+							Required:    false,
 							Description: "PEM-encoded client certificate key for TLS authentication.",
 						},
 						clusterCaCertificate: {

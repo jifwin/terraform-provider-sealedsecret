@@ -27,6 +27,7 @@ type Client struct {
 type Config struct {
 	Host                                 string
 	ClusterCACert, ClientCert, ClientKey []byte
+	Token                                string
 	Transport                            http.RoundTripper
 }
 
@@ -42,6 +43,7 @@ func NewClient(cfg *Config) (*Client, error) {
 	restCfg.CAData = cfg.ClusterCACert
 	restCfg.CertData = cfg.ClientCert
 	restCfg.KeyData = cfg.ClientKey
+	restCfg.BearerToken = cfg.Token
 	if cfg.Transport != nil {
 		restCfg.Transport = cfg.Transport
 	}
