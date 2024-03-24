@@ -3,16 +3,15 @@ package provider
 import (
 	"context"
 	"crypto/rsa"
-	"crypto/sha1"
 	"fmt"
-	"log"
-	"time"
-
 	"github.com/akselleirv/sealedsecret/internal/k8s"
 	"github.com/akselleirv/sealedsecret/internal/kubeseal"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+	"log"
+	"time"
 )
 
 const (
@@ -34,6 +33,68 @@ type SealedSecret struct {
 			} `yaml:"metadata"`
 		} `yaml:"template"`
 	} `yaml:"spec"`
+}
+
+func resourceLocal() *schema.Resource {
+	return &schema.Resource{
+		Description:   "Creates a sealed secret and store it in yaml_content.",
+		CreateContext: resourceCreateLocal,
+		ReadContext:   resourceCreateLocal,
+		UpdateContext: resourceCreateLocal,
+		DeleteContext: resourceDeleteLocal,
+		Schema: map[string]*schema.Schema{
+			name: {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "name of the secret, must be unique",
+			},
+			namespace: {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "namespace of the secret",
+			},
+			secretType: {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "Opaque",
+				Description: "The secret type (ex. Opaque). Default type is Opaque.",
+			},
+			data: {
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Sensitive:   true,
+				Description: "Key/value pairs to populate the secret. The value will be base64 encoded",
+			},
+			"yaml_content": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The produced sealed secret yaml file.",
+			},
+		},
+	}
+}
+
+func resourceCreateLocal(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	provider := meta.(*ProviderConfig)
+	filePath := d.Get(name).(string)
+
+	logDebug("Creating sealed secret for path " + filePath)
+	sealedSecret, err := createSealedSecret(ctx, provider, d)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	logDebug("Successfully created sealed secret for path " + filePath)
+
+	d.SetId(filePath)
+	d.Set(data, d.Get(data).(map[string]interface{}))
+	d.Set("yaml_content", string(sealedSecret))
+
+	return nil
+}
+
+func resourceDeleteLocal(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	d.SetId("")
+	return nil
 }
 
 func createSealedSecret(ctx context.Context, provider *ProviderConfig, d *schema.ResourceData) ([]byte, error) {
@@ -79,12 +140,6 @@ func createSealedSecret(ctx context.Context, provider *ProviderConfig, d *schema
 	}
 
 	return kubeseal.SealSecret(secret, pk)
-}
-
-// The public key is hashed since we want to force update the resource if the key changes.
-// Hashing the key also saves us some space.
-func hashPublicKey(pk *rsa.PublicKey) string {
-	return fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("%v%v", pk.N, pk.E))))
 }
 
 func logDebug(msg string) {

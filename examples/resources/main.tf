@@ -19,7 +19,7 @@ provider "sealedsecret" {
   }
 }
 
-resource "sealedsecret_local" "example" {
+resource "sealedsecret" "example" {
   name      = "example-secret"
   namespace = "default"
   data      = {
@@ -29,7 +29,7 @@ resource "sealedsecret_local" "example" {
 
 resource "local_file" "example" {
   filename = "sealedsecret.yaml"
-  content  = sealedsecret_local.example.yaml_content
+  content  = sealedsecret.example.yaml_content
 }
 
 variable "k8s_client_certificate" {

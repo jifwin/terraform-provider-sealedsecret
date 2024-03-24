@@ -73,7 +73,7 @@ func Provider() *schema.Provider {
 		},
 		ConfigureContextFunc: configureProvider,
 		ResourcesMap: map[string]*schema.Resource{
-			"sealedsecret_local": resourceLocal(), //TODO: drop _local suffix
+			"sealedsecret": resourceLocal(),
 		},
 	}
 }
@@ -85,7 +85,7 @@ type ProviderConfig struct {
 	PublicKeyResolver   kubeseal.PKResolverFunc
 }
 
-// TODO: context?
+// TODO: context not used?
 func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	k8sCfg, ok := getMapFromSchemaSet(rd, kubernetes)
 	if !ok {

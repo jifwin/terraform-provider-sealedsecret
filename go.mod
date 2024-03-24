@@ -4,11 +4,8 @@ go 1.17
 
 require (
 	github.com/bitnami-labs/sealed-secrets v0.16.0
-	github.com/go-git/go-billy/v5 v5.3.1
-	github.com/go-git/go-git/v5 v5.4.2
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.8.0
 	github.com/stretchr/testify v1.7.0
-	github.com/xanzy/go-gitlab v0.51.1
 	k8s.io/api v0.22.3
 	k8s.io/apimachinery v0.22.3
 	k8s.io/client-go v0.22.3
