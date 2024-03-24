@@ -37,17 +37,17 @@ func Provider() *schema.Provider {
 						},
 						token: {
 							Type:        schema.TypeString,
-							Required:    false,
+							Optional:    true,
 							Description: "Bearer token for authentication",
 						},
 						clientCertificate: {
 							Type:        schema.TypeString,
-							Required:    false,
+							Optional:    true,
 							Description: "PEM-encoded client certificate for TLS authentication.",
 						},
 						clientKey: {
 							Type:        schema.TypeString,
-							Required:    false,
+							Optional:    true,
 							Description: "PEM-encoded client certificate key for TLS authentication.",
 						},
 						clusterCaCertificate: {
