@@ -97,6 +97,7 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 		ClusterCACert: []byte(k8sCfg[clusterCaCertificate].(string)),
 		ClientCert:    []byte(k8sCfg[clientCertificate].(string)),
 		ClientKey:     []byte(k8sCfg[clientKey].(string)),
+		Token:         k8sCfg[token].(string),
 	})
 	if err != nil {
 		return nil, diag.FromErr(err)
