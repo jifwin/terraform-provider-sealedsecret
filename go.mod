@@ -1,6 +1,6 @@
-module github.com/akselleirv/sealedsecret
+module github.com/jifwin/terraform-provider-sealedsecret
 
-go 1.17
+go 1.17 //TODO: bump go version
 
 require (
 	github.com/bitnami-labs/sealed-secrets v0.16.0

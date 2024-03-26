@@ -2,7 +2,7 @@ terraform {
   required_providers {
     sealedsecret = {
       version = ">=1.2.0"
-      source  = "akselleirv/sealedsecret"
+      source  = "jifwin/terraform-provider-sealedsecret"
     }
   }
 }

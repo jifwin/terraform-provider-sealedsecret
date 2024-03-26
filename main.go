@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/akselleirv/sealedsecret/internal/provider"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
+	"github.com/jifwin/terraform-provider-sealedsecret/internal/provider"
 )
 
 // Run the docs generation tool, check its repository for more information on how it works and how docs

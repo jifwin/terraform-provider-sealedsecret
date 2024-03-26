@@ -3,10 +3,10 @@ package provider
 import (
 	"context"
 	"errors"
-	"github.com/akselleirv/sealedsecret/internal/k8s"
-	"github.com/akselleirv/sealedsecret/internal/kubeseal"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/jifwin/terraform-provider-sealedsecret/internal/k8s"
+	"github.com/jifwin/terraform-provider-sealedsecret/internal/kubeseal"
 )
 
 const (

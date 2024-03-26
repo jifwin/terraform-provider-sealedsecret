@@ -3,7 +3,7 @@ package kubeseal
 import (
 	"context"
 	"crypto/rsa"
-	"github.com/akselleirv/sealedsecret/internal/k8s"
+	"github.com/jifwin/terraform-provider-sealedsecret/internal/k8s"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
