@@ -38,16 +38,19 @@ func Provider() *schema.Provider {
 						token: {
 							Type:        schema.TypeString,
 							Optional:    true,
-							Description: "Bearer token for authentication",
+							DefaultFunc: schema.EnvDefaultFunc("KUBE_TOKEN", ""),
+							Description: "Token to authenticate an service account",
 						},
 						clientCertificate: {
 							Type:        schema.TypeString,
 							Optional:    true,
+							DefaultFunc: schema.EnvDefaultFunc("KUBE_CLIENT_CERT_DATA", ""),
 							Description: "PEM-encoded client certificate for TLS authentication.",
 						},
 						clientKey: {
 							Type:        schema.TypeString,
 							Optional:    true,
+							DefaultFunc: schema.EnvDefaultFunc("KUBE_CLIENT_KEY_DATA", ""),
 							Description: "PEM-encoded client certificate key for TLS authentication.",
 						},
 						clusterCaCertificate: {

@@ -17,36 +17,23 @@ description: |-
 
 ### Required
 
-- **kubernetes** (Block List, Min: 1, Max: 1) Kubernetes configuration. (see [below for nested schema](#nestedblock--kubernetes))
+- `kubernetes` (Block List, Min: 1, Max: 1) Kubernetes configuration. (see [below for nested schema](#nestedblock--kubernetes))
 
 ### Optional
 
-- **controller_name** (String) The name of the sealed-secret-controller.
-- **controller_namespace** (String) The namespace the controller is running in.
-- **git** (Block List, Max: 1) Git repository credentials to where the sealed secret should be stored. (see [below for nested schema](#nestedblock--git))
+- `controller_name` (String) The name of the sealed-secret-controller.
+- `controller_namespace` (String) The namespace the controller is running in.
 
 <a id="nestedblock--kubernetes"></a>
 ### Nested Schema for `kubernetes`
 
 Required:
 
-- **client_certificate** (String) PEM-encoded client certificate for TLS authentication.
-- **client_key** (String) PEM-encoded client certificate key for TLS authentication.
-- **cluster_ca_certificate** (String) PEM-encoded root certificates bundle for TLS authentication.
-- **host** (String) The hostname (in form of URI) of Kubernetes master.
-
-
-<a id="nestedblock--git"></a>
-### Nested Schema for `git`
-
-Required:
-
-- **token** (String, Sensitive) Token to be used for the basic auth.
-- **url** (String) URL to the repository.
-- **username** (String) Username to be used for the basic auth.
+- `cluster_ca_certificate` (String) PEM-encoded root certificates bundle for TLS authentication.
+- `host` (String) The hostname (in form of URI) of Kubernetes master.
 
 Optional:
 
-- **gitlab** (Boolean) If set to true the provider will create a merge request from source branch to target branch. This is currently supported for Gitlab.
-- **source_branch** (String) Name of the branch to be used. If the branch does not exist it will be created.
-- **target_branch** (String) Name of the branch that should be merged to. Gitlab value must be set to true in order to create a merge request.
+- `client_certificate` (String) PEM-encoded client certificate for TLS authentication.
+- `client_key` (String) PEM-encoded client certificate key for TLS authentication.
+- `token` (String) Token to authenticate an service account
