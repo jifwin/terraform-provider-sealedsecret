@@ -72,6 +72,13 @@ func resourceLocal() *schema.Resource {
 				ForceNew:    true,
 				Description: "Key/value pairs to populate the secret. The value will be base64 encoded",
 			},
+			stringData: {
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Sensitive:   true,
+				ForceNew:    true,
+				Description: "Key/value pairs to populate the secret.",
+			},
 			yaml_content: {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -93,7 +100,7 @@ func resourceRead(ctx context.Context, d *schema.ResourceData, meta interface{})
 		return diag.FromErr(err)
 	}
 
-	if d.HasChanges(name, namespace, secretType, data) || (formatPublicKeyAsString(pk) != d.Get("public_key")) {
+	if d.HasChanges(name, namespace, secretType, data, stringData) || (formatPublicKeyAsString(pk) != d.Get("public_key")) {
 		return resourceCreate(ctx, d, meta)
 	} else {
 		return nil
@@ -116,6 +123,7 @@ func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{
 
 	d.SetId(filePath)
 	d.Set(data, d.Get(data).(map[string]interface{}))
+	//TODO: add stringData?
 	d.Set("yaml_content", string(sealedSecret))
 	d.Set("public_key", formatPublicKeyAsString(pk))
 

@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-
 	"html/template"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -22,13 +21,13 @@ metadata:
 {{ if .Data }}
 data:
   {{- range $key, $value := .Data }}
-  {{ $key }}: {{ $value -}}
+  {{ $key }}: "{{ $value -}}"
   {{ end }}
 {{ end }}
 {{ if .StringData }}
 stringData:
   {{- range $key, $value := .StringData }}
-  {{ $key }}: {{ $value -}}
+  {{ $key }}: "{{ $value -}}"
   {{ end }}
 {{ end }}
 type: {{ .Type }}`
