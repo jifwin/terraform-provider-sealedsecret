@@ -95,7 +95,7 @@ func resourceLocal() *schema.Resource {
 
 func resourceRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	provider := meta.(*ProviderConfig)
-	pk, err := provider.PublicKeyResolver(ctx)
+	pk, err := getPublicKey(ctx, provider)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -109,7 +109,7 @@ func resourceRead(ctx context.Context, d *schema.ResourceData, meta interface{})
 func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	provider := meta.(*ProviderConfig)
 	filePath := d.Get(name).(string)
-	pk, err := provider.PublicKeyResolver(ctx)
+	pk, err := getPublicKey(ctx, provider)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -157,8 +157,18 @@ func createSealedSecret(ctx context.Context, provider *ProviderConfig, d *schema
 		return nil, err
 	}
 
+	pk, err := getPublicKey(ctx, provider)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return kubeseal.SealSecret(secret, pk)
+}
+
+func getPublicKey(ctx context.Context, provider *ProviderConfig) (*rsa.PublicKey, error) {
 	var pk *rsa.PublicKey
-	err = resource.RetryContext(ctx, 3*time.Minute, func() *resource.RetryError {
+	err := resource.RetryContext(ctx, 3*time.Minute, func() *resource.RetryError {
 		var err error
 		logDebug("Trying to fetch the public key")
 		pk, err = provider.PublicKeyResolver(ctx)
@@ -172,12 +182,7 @@ func createSealedSecret(ctx context.Context, provider *ProviderConfig, d *schema
 		logDebug("Successfully fetched the public key")
 		return nil
 	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return kubeseal.SealSecret(secret, pk)
+	return pk, err
 }
 
 // TODO: refactor
