@@ -1,74 +1,52 @@
 package k8s
 
 import (
-	"bytes"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"html/template"
+	apiv1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes/scheme"
 )
 
-const secretManifestTmpl = `
-apiVersion: v1
-kind: Secret
-metadata:
-  creationTimestamp: null
-  name: {{ .Name }}
-  namespace: {{ .Namespace }}
-{{ if .Data }}
-data:
-  {{- range $key, $value := .Data }}
-  {{ $key }}: "{{ $value -}}"
-  {{ end }}
-{{ end }}
-{{ if .StringData }}
-stringData:
-  {{- range $key, $value := .StringData }}
-  {{ $key }}: "{{ $value -}}"
-  {{ end }}
-{{ end }}
-type: {{ .Type }}`
-
 type SecretManifest struct {
-	Name       string
-	Namespace  string
-	Type       string
-	Data       map[string]interface{}
+	Name      string
+	Namespace string
+	Type      string
+	Data      map[string]string
+	//Deprecated: TODO: remove
 	StringData map[string]string
 }
 
 var ErrEmptyData = errors.New("secret manifest Data and StringData cannot be empty")
 
 func CreateSecret(sm *SecretManifest) (v1.Secret, error) {
-	if len(sm.Data) == 0 && len(sm.StringData) == 0 {
+	if len(sm.Data) == 0 {
 		return v1.Secret{}, ErrEmptyData
 	}
 
+	//TODO: rethink
 	// if it is a .docker/config.json file then the data should already be base64 encoded
-	if sm.Type != "kubernetes.io/dockerconfigjson" {
-		sm.Data = b64EncodeMapValue(sm.Data)
-	}
-	secretManifestYAML := new(bytes.Buffer)
+	//if sm.Type != "kubernetes.io/dockerconfigjson" {
+	//	sm.Data = b64EncodeMapValue(sm.Data)
+	//}
 
-	t, err := template.New("secretManifestTmpl").Parse(secretManifestTmpl)
-	if err != nil {
-		return v1.Secret{}, err
-	}
-	if err := t.Execute(secretManifestYAML, sm); err != nil {
-		return v1.Secret{}, err
+	data := make(map[string][]byte)
+	for key, value := range sm.Data {
+		data[key] = []byte(value)
 	}
 
 	var secret v1.Secret
-	if err := runtime.DecodeInto(scheme.Codecs.UniversalDecoder(), secretManifestYAML.Bytes(), &secret); err != nil {
-		return v1.Secret{}, err
-	}
+	secret.APIVersion = "v1"
+	secret.Kind = "Secret" //TODO: is it really needed?
+	secret.ObjectMeta.Name = sm.Name
+	secret.ObjectMeta.Namespace = sm.Namespace
+	secret.Data = data
+	secret.Type = apiv1.DockerConfigJsonKey //todo: support other types
 
 	return secret, nil
 }
 
+// TODO: to be removed?
 func b64EncodeMapValue(m map[string]interface{}) map[string]interface{} {
 	result := map[string]interface{}{}
 	for key, value := range m {

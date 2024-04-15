@@ -21,7 +21,6 @@ const (
 	namespace    = "namespace"
 	secretType   = "type"
 	data         = "data"
-	stringData   = "string_data" //TODO: remove?
 	yaml_content = "yaml_content"
 	public_key   = "public_key"
 )
@@ -72,13 +71,6 @@ func resourceLocal() *schema.Resource {
 				ForceNew:    true,
 				Description: "Key/value pairs to populate the secret. The value will be base64 encoded",
 			},
-			stringData: {
-				Type:        schema.TypeMap,
-				Optional:    true,
-				Sensitive:   true,
-				ForceNew:    true,
-				Description: "Key/value pairs to populate the secret.",
-			},
 			yaml_content: {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -100,7 +92,7 @@ func resourceRead(ctx context.Context, d *schema.ResourceData, meta interface{})
 		return diag.FromErr(err)
 	}
 
-	if d.HasChanges(name, namespace, secretType, data, stringData) || (formatPublicKeyAsString(pk) != d.Get("public_key")) {
+	if d.HasChanges(name, namespace, secretType, data) || (formatPublicKeyAsString(pk) != d.Get("public_key")) {
 		return resourceCreate(ctx, d, meta)
 	} else {
 		return nil
@@ -122,8 +114,7 @@ func resourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{
 	logDebug("Successfully created sealed secret for path " + filePath)
 
 	d.SetId(filePath)
-	d.Set(data, d.Get(data).(map[string]interface{}))
-	//TODO: add stringData?
+	d.Set(data, d.Get(data).(map[string]interface{})) //TODO: update
 	d.Set("yaml_content", string(sealedSecret))
 	d.Set("public_key", formatPublicKeyAsString(pk))
 
@@ -142,14 +133,11 @@ func createSealedSecret(ctx context.Context, provider *ProviderConfig, d *schema
 		Type:      d.Get(secretType).(string),
 	}
 	if dataRaw, ok := d.GetOk(data); ok {
-		rawSecret.Data = dataRaw.(map[string]interface{})
-	}
-	if stringDataRaw, ok := d.GetOk(stringData); ok {
-		m := make(map[string]string)
-		for k, v := range stringDataRaw.(map[string]interface{}) {
-			m[k] = v.(string)
+		data := make(map[string]string)
+		for key, value := range dataRaw.(map[string]interface{}) {
+			data[key] = value.(string)
 		}
-		rawSecret.StringData = m
+		rawSecret.Data = data
 	}
 
 	secret, err := k8s.CreateSecret(&rawSecret)
