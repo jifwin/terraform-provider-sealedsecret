@@ -66,7 +66,7 @@ func (c *Client) Get(ctx context.Context, controllerName, controllerNamespace, p
 	}
 	b, err := io.ReadAll(resp)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read response from k8 cluster: %w", err)
+		return nil, fmt.Errorf("unable to read response from k8s cluster: %w", err)
 	}
 	return b, nil
 }
