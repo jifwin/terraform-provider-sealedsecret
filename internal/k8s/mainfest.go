@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	apiv1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -41,7 +40,7 @@ func CreateSecret(sm *SecretManifest) (v1.Secret, error) {
 	secret.ObjectMeta.Name = sm.Name
 	secret.ObjectMeta.Namespace = sm.Namespace
 	secret.Data = data
-	secret.Type = apiv1.DockerConfigJsonKey //todo: support other types
+	secret.Type = v1.SecretType(sm.Type)
 
 	return secret, nil
 }
