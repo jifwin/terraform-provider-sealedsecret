@@ -88,7 +88,6 @@ type ProviderConfig struct {
 	PublicKeyResolver   kubeseal.PKResolverFunc
 }
 
-// TODO: context not used?
 func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	k8sCfg, ok := getMapFromSchemaSet(rd, kubernetes)
 	if !ok {
