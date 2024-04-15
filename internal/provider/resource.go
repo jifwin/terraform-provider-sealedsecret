@@ -161,7 +161,8 @@ func getPublicKey(ctx context.Context, provider *ProviderConfig) (*rsa.PublicKey
 		logDebug("Trying to fetch the public key")
 		pk, err = provider.PublicKeyResolver(ctx)
 		if err != nil {
-			if k8sErrors.IsNotFound(err) || k8sErrors.IsServiceUnavailable(err) {
+			//TODO: check the actual type of error (e.g. timeout)
+			if true || k8sErrors.IsNotFound(err) || k8sErrors.IsServiceUnavailable(err) {
 				logDebug("Retrying to fetch the public key: " + err.Error())
 				return resource.RetryableError(fmt.Errorf("waiting for sealed-secret-controller to be deployed: %w", err))
 			}
