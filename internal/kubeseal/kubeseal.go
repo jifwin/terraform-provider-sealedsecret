@@ -7,7 +7,6 @@ import (
 	ssv1alpha1 "github.com/bitnami-labs/sealed-secrets/pkg/apis/sealedsecrets/v1alpha1"
 	"github.com/jifwin/terraform-provider-sealedsecret/internal/k8s"
 	v1 "k8s.io/api/core/v1"
-	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimeserializer "k8s.io/apimachinery/pkg/runtime/serializer"
@@ -39,7 +38,8 @@ func FetchPK(c k8s.Clienter, controllerName, controllerNamespace string) PKResol
 	var err error
 
 	return func(ctx context.Context) (*rsa.PublicKey, error) {
-		if err != nil && k8sErrors.IsNotFound(err) || k8sErrors.IsServiceUnavailable(err) {
+		//TODO: refactor
+		if err != nil { //&& k8sErrors.IsNotFound(err) || k8sErrors.IsServiceUnavailable(err) {
 			publicKey, err = doReq(ctx)
 		}
 		if publicKey == nil && err == nil {
