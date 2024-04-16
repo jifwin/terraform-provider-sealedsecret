@@ -84,7 +84,6 @@ func Provider() *schema.Provider {
 type ProviderConfig struct {
 	ControllerName      string
 	ControllerNamespace string
-	Client              *k8s.Client
 	PublicKeyResolver   kubeseal.PKResolverFunc
 }
 
@@ -111,7 +110,6 @@ func configureProvider(ctx context.Context, rd *schema.ResourceData) (interface{
 	return &ProviderConfig{
 		ControllerName:      cName,
 		ControllerNamespace: cNs,
-		Client:              c,
 		PublicKeyResolver:   kubeseal.FetchPK(c, cName, cNs),
 	}, nil
 }
